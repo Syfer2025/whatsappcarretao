@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendedor - Atendimento WhatsApp</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f2f5; display:flex; height:100dvh; min-height:100dvh; max-height:100dvh; overflow:hidden; color: #111b21; }
+
+/* Sidebar */
+.sidebar { width:380px; height:100dvh; background:#fff; border-right:1px solid #e9edef; display:flex; flex:none; flex-direction:column; z-index: 10; min-height: 0; overflow:hidden; }
+.sidebar-header { background: linear-gradient(135deg, #25d366, #128C7E); color:white; padding:16px 20px; }
+.sidebar-header .logo-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.sidebar-header .logo-row img { height:26px; width:auto; filter: brightness(0) invert(1); }
+.sidebar-header .logo-row h2 { font-size:16px; font-weight: 600; letter-spacing: -0.3px; }
+.sidebar-header .sub { font-size:12px; opacity:0.9; margin-top: 2px; font-weight: 500; }
+.sidebar-header a { color:rgba(255,255,255,0.8); font-size:12px; text-decoration:none; display:block; margin-top:8px; transition: color 0.2s; font-weight: 500; }
+.sidebar-header a:hover { color:#fff; }
+
+.conv-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding: 4px 0; }
+.conv-list::-webkit-scrollbar { width: 6px; }
+.conv-list::-webkit-scrollbar-thumb { background: #d1d7db; border-radius: 6px; }
+
+.panel { padding:16px 20px; border-bottom:1px solid #e9edef; background: #fff; }
+.conv-item { padding:12px 20px; border-bottom:1px solid #f0f2f5; cursor:pointer; display:flex; align-items:center; gap:12px; transition: all 0.2s; }
+.conv-item:hover, .conv-item.active { background:#f5f6f6; }
+.conv-details { min-width:0; flex:1; }
+.conv-item .name { font-weight:600; font-size:14px; color: #111b21; }
+.conv-item .preview { font-size:13px; color:#667781; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.conv-item .meta { font-size:11px; color:#667781; margin-top:4px; font-weight: 500; }
+.conv-title { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.unread-badge { min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#25d366; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; line-height:1; }
+
+/* Main */
+.main { flex:1; height:100dvh; display:flex; flex-direction:column; background: #efeae2; position: relative; min-width:0; min-height:0; overflow:hidden; }
+#chatContainer { flex:1 1 auto; height:100%; min-height:0; overflow:hidden; }
+.main::before { content: ''; position: absolute; top:0; left:0; width:100%; height:100%; background: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 0.05; pointer-events: none; z-index: 0; }
+
+.main-header { flex:none; background:rgba(255,255,255,0.95); backdrop-filter: blur(10px); color:#111b21; padding:10px 20px; display: flex; align-items: center; border-bottom: 1px solid #e9edef; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+.chat-headline { display:flex; align-items:center; gap:12px; }
+.main-header h3 { font-size:15px; font-weight:600; color: #111b21; }
+.chat-phone { font-size:12px; color:#667781; margin-top:1px; }
+
+.avatar { width:40px; height:40px; border-radius:50%; background: linear-gradient(135deg, #e1e7eb, #d1d7db); color:#54656f; display:flex; align-items:center; justify-content:center; flex:none; overflow:hidden; font-size:14px; font-weight:600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.avatar-large { width:44px; height:44px; font-size:15px; }
+.avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+
+.messages { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:20px; display:flex; flex-direction:column; z-index: 1; scroll-behavior: smooth; }
+.messages::-webkit-scrollbar { width: 6px; }
+.messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 6px; }
+
+.msg { margin-bottom:12px; max-width:65%; padding:8px 12px; border-radius:10px; font-size:14px; line-height:1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.msg-inner { display:flex; gap:8px; align-items:flex-start; }
+.msg-main { min-width:0; flex:1; cursor:pointer; }
+.msg-actions { flex:none; }
+.star-btn { border:none; background:transparent; color:#d1d7db; cursor:pointer; font-size:16px; line-height:1; padding:0; transition: 0.2s; }
+.star-btn:hover { color:#8696a0; }
+.star-btn.active { color:#fbbc04; }
+.reply-btn { border:none; background:transparent; color:#d1d7db; cursor:pointer; font-size:15px; line-height:1; padding:0; transition:0.2s; margin-left:2px; }
+.reply-btn:hover { color:#25d366; }
+
+.msg.client { background:white; align-self:flex-start; border-top-left-radius: 4px; }
+.msg.vendor { background:#d9fdd3; align-self:flex-end; margin-left:auto; border-top-right-radius: 4px; }
+.msg .time { font-size:11px; color:#667781; margin-top:4px; text-align:right; font-weight: 500; }
+.delivery-status { margin-left:4px; color: #53bdeb; }
+.delivery-status.failed { color:#ea4335; }
+
+.msg .label { font-size:11px; font-weight:600; margin-bottom:3px; color:#25d366; letter-spacing: 0.3px; }
+.msg.client .label { color: #d81b60; }
+.msg.system { background:rgba(255,255,255,0.8); align-self:center; font-size:12px; color:#54656f; font-weight: 500; box-shadow: none; border-radius: 16px; padding: 5px 12px; margin-bottom: 16px; }
+.date-separator { align-self:center; background:rgba(255,255,255,0.9); color:#54656f; border-radius:12px; padding:5px 12px; margin:12px 0 16px; font-size:11px; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+.msg-content { white-space:pre-wrap; word-break:break-word; color: #111b21; }
+.media-block { margin-top:4px; border-radius: 8px; overflow: hidden; }
+.media-block img { display:block; max-width:260px; max-height:320px; border-radius:8px; object-fit:contain; transition: transform 0.2s; }
+.media-block img:hover { transform: scale(1.02); }
+.media-block video { display:block; max-width:300px; max-height:320px; border-radius:8px; }
+.media-block audio { width:260px; max-width:100%; outline: none; }
+.media-unavailable { color:#8696a0; font-size:12px; font-style:italic; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 8px; }
+.attachment-link { display:inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(0,0,0,0.04); color:#25d366; text-decoration:none; font-weight:600; border-radius: 8px; transition: 0.2s; }
+.attachment-link:hover { background: rgba(0,0,0,0.08); }
+
+/* Quote bar */
+.quote-bar { display:none; flex:none; align-items:center; gap:10px; min-height:46px; max-height:62px; padding:7px 20px; background:#f0f2f5; border-top:1px solid #e0e8e3; font-size:13px; overflow:hidden; }
+.quote-bar.open { display:flex; }
+.quote-bar .quote-info { flex:1; min-width:0; border-left:4px solid #25d366; padding-left:10px; }
+.quote-bar .quote-info strong { font-size:11px; color:#075e54; display:block; }
+.quote-bar .quote-info span { font-size:12px; color:#667781; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+.quote-bar button { background:none; border:none; color:#999; font-size:20px; cursor:pointer; padding:0 4px; line-height:1; transition:color .15s; }
+.quote-bar button:hover { color:#ea4335; }
+
+.msg-quoted { padding:5px 8px 5px 10px; margin-bottom:3px; border-radius:4px; font-size:12px; background:rgba(0,0,0,0.03); border-left:3px solid #25d366; }
+.msg-quoted .q-label { font-weight:600; font-size:10px; color:#075e54; text-transform:uppercase; letter-spacing:.3px; margin-bottom:1px; }
+.msg-quoted .q-content { color:#54656f; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; display:flex; align-items:center; gap:4px; }
+.msg-quoted .q-content img { width:18px; height:18px; border-radius:3px; object-fit:cover; flex:none; }
+.msg-quoted .q-content .q-media { color:#8696a0; font-style:italic; font-size:11px; }
+
+.chat-footer { flex:none; padding:12px 20px; background:#f0f2f5; display:flex; flex-wrap:wrap; gap:10px; align-items:center; position:relative; z-index: 10; border-top: 1px solid #e9edef; }
+.chat-footer input[type="text"] { flex:1; min-width:160px; padding:10px 16px; border:none; border-radius:24px; font-size:14px; outline:none; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: box-shadow 0.2s; }
+.chat-footer input[type="text"]::placeholder { color:#8696a0; }
+.chat-footer input[type="text"]:focus { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+.chat-footer button#sendBtn { padding:8px 22px; background:#25d366; color:white; border:none; border-radius:24px; font-weight: 600; cursor:pointer; font-size: 14px; transition: 0.2s; box-shadow: 0 2px 5px rgba(37, 211, 102, 0.3); }
+.chat-footer button#sendBtn:hover { background:#128C7E; box-shadow: 0 4px 8px rgba(18, 140, 126, 0.4); }
+.chat-footer button:disabled { opacity:.5; cursor:default; box-shadow: none; }
+
+.chat-footer .icon-btn { width:38px; height:38px; padding:0; border-radius:50%; background:transparent; color:#54656f; font-size:18px; border: none; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+.chat-footer .icon-btn:hover { background: rgba(0,0,0,0.05); color: #25d366; }
+.file-preview { flex-basis:100%; display:none; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px; background:#fff; border-radius:8px; color:#111b21; font-size:13px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.file-preview.open { display:flex; }
+.file-preview button { padding:5px 10px; background:#ea4335; color: white; border: none; border-radius: 6px; font-size:11px; cursor: pointer; font-weight: 600; }
+.record-btn.recording { background:#ea4335 !important; color:white !important; animation: pulse 1.5s infinite; }
+
+.record-status { flex-basis:100%; display:none; align-items:center; justify-content:space-between; gap:10px; padding:8px 14px; background:#fbbc04; border-radius:8px; color:#fff; font-size:13px; font-weight: 600; box-shadow: 0 2px 4px rgba(251, 188, 4, 0.3); }
+.record-status.open { display:flex; }
+.record-status button { padding:5px 10px; background:rgba(0,0,0,0.2); color: white; border: none; border-radius: 6px; font-size:11px; cursor: pointer; }
+
+.emoji-picker { display:none; position:absolute; left:20px; bottom:64px; background:white; border:1px solid #e9edef; box-shadow:0 8px 24px rgba(0,0,0,.1); border-radius:12px; padding:10px; width:260px; z-index:20; }
+.emoji-picker.open { display:grid; grid-template-columns:repeat(6,1fr); gap:4px; animation: slideUp 0.2s ease; }
+.emoji-picker button { background:transparent; color:#222; padding:6px; font-size:20px; border:none; border-radius:6px; cursor: pointer; transition: 0.2s; }
+.emoji-picker button:hover { background:#f0f2f5; transform: scale(1.1); }
+
+.sidebar-actions { display:flex; gap:8px; margin-top:8px; }
+.sidebar-actions button { padding:6px 12px; background:rgba(255,255,255,0.2); color:white; border:none; border-radius:6px; font-size:12px; font-weight: 600; cursor:pointer; transition: 0.2s; }
+.sidebar-actions button:hover { background:rgba(255,255,255,0.3); }
+
+.favorite-search { padding:12px 20px; background: #fff; border-bottom: 1px solid #e9edef; }
+.favorite-search input { width:100%; padding:8px 12px; border:none; background: #f0f2f5; border-radius:6px; font-size: 13px; outline: none; transition: 0.2s; }
+.favorite-search input:focus { box-shadow: inset 0 0 0 2px #25d366; }
+.sidebar-search { padding:10px 16px; background:#fff; border-bottom:1px solid #e9edef; display:flex; gap:8px; }
+.sidebar-search input { flex:1; min-width:0; padding:8px 10px; border:none; background:#f0f2f5; border-radius:6px; font-size:13px; outline:none; }
+.sidebar-search button { padding:7px 10px; border:none; border-radius:6px; background:#25d366; color:#fff; font-weight:700; cursor:pointer; font-size:12px; }
+.fav-item { padding:12px 20px; border-bottom:1px solid #f0f2f5; cursor:pointer; transition: 0.2s; }
+.fav-item:hover { background:#f5f6f6; }
+.fav-item .name { font-weight:600; font-size:14px; color: #111b21; }
+.fav-item .preview { margin-top:3px; font-size:13px; color:#667781; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fav-item .meta { margin-top:4px; font-size:11px; color:#8696a0; font-weight: 500; }
+.conv-actions { display:flex; gap:4px; flex:none; align-self:flex-start; }
+.conv-actions button { width:26px; height:26px; border:none; border-radius:50%; background:#f0f2f5; color:#667781; cursor:pointer; font-size:12px; }
+.conv-actions button.active { background:#d9fdd3; color:#075e54; }
+.search-section { padding:8px 20px; font-size:11px; font-weight:700; color:#667781; text-transform:uppercase; letter-spacing:.4px; background:#f8faf9; }
+.chat-tools { margin-left:auto; display:flex; align-items:center; gap:6px; }
+.chat-tools select { padding:6px 10px; border:1px solid #d1d7db; border-radius:6px; background:#fff; color:#111b21; font-size:12px; cursor:pointer; }
+.typing-status { font-size:11px; color:#25d366; min-height:14px; margin-top:2px; font-weight:600; }
+.load-older { align-self:center; margin:0 auto 12px; padding:6px 12px; border:none; border-radius:14px; background:rgba(255,255,255,.92); color:#075e54; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+.msg.highlight { outline:2px solid #25d366; box-shadow:0 0 0 4px rgba(37,211,102,.16); }
+.file-preview { flex-direction:column; align-items:stretch; }
+.file-preview-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.no-select { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; height:100%; color:#8696a0; font-size:16px; font-weight: 500; flex-direction: column; gap: 16px; }
+.no-select::before { content: '💬'; font-size: 48px; opacity: 0.5; }
+
+.connection-banner { display:none; position:fixed; top:14px; right:24px; max-width:min(460px, calc(100vw - 48px)); z-index:1000; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:700; box-shadow:0 8px 24px rgba(0,0,0,0.14); }
+.connection-banner.open { display:block; }
+.connection-banner.wait { background:#fff4ce; color:#7a4f01; }
+.connection-banner.bad { background:#fdecea; color:#a50e0e; }
+.connection-banner.ok { background:#e6f4ea; color:#137333; }
+
+/* Lightbox */
+.media-preview { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:1100; align-items:center; justify-content:center; cursor:pointer; }
+.media-preview.open { display:flex; }
+.media-preview img { max-width:92vw; max-height:88vh; object-fit:contain; border-radius:6px; box-shadow:0 8px 40px rgba(0,0,0,0.5); }
+.media-preview-close { position:fixed; top:18px; right:24px; color:#fff; font-size:34px; cursor:pointer; opacity:0.6; transition:0.2s; line-height:1; background:none; border:none; z-index:1110; }
+.media-preview-close:hover { opacity:1; }
+.media-preview-caption { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,0.7); font-size:13px; max-width:80vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Custom Scrollbar general */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(0,0,0,0.25); }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-row">
+      <img src="/logo.webp" alt="Logo">
+      <h2>Minhas Conversas</h2>
+    </div>
+    <div class="sub" id="vendorName"></div>
+    <div class="sidebar-actions"><button id="favoritesToggle" onclick="toggleFavoritesView()">Favoritas</button><button onclick="requestNotificationPermission()">Notificações</button></div>
+    <a href="#" onclick="logout()">Sair</a>
+  </div>
+  <div class="sidebar-search">
+    <input id="globalSearch" placeholder="Buscar conversas e mensagens..." oninput="performGlobalSearch()">
+    <button onclick="performGlobalSearch()">Buscar</button>
+  </div>
+  <div class="conv-list" id="convList"></div>
+</div>
+
+<div class="main">
+  <div id="noSelection" class="no-select">Selecione uma conversa</div>
+  <div id="chatContainer" style="display:none;flex:1;flex-direction:column">
+    <div class="main-header">
+      <div class="chat-headline">
+        <div id="chatAvatarSlot"></div>
+        <div>
+          <h3 id="chatName">Carregando...</h3>
+          <div id="chatPhone" class="chat-phone"></div>
+          <div id="typingStatus" class="typing-status"></div>
+        </div>
+      </div>
+      <div class="chat-tools">
+        <select id="mediaFilter" onchange="changeMediaFilter()">
+          <option value="">Todas</option>
+          <option value="image">Imagens</option>
+          <option value="video">Vídeos</option>
+          <option value="audio">Áudios</option>
+          <option value="document">Documentos</option>
+        </select>
+      </div>
+    </div>
+    <button id="loadOlderBtn" class="load-older" onclick="loadOlderMessages()" style="display:none">Carregar antigas</button>
+    <div class="messages" id="messagesList"></div>
+    <div id="quoteBar" class="quote-bar">
+      <div class="quote-info">
+        <strong id="quoteLabel">Respondendo</strong>
+        <span id="quotePreview"></span>
+      </div>
+      <button onclick="cancelReply()">&times;</button>
+    </div>
+    <div class="chat-footer">
+      <input id="fileInput" type="file" multiple style="display:none" onchange="handleFileSelect(event)">
+      <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Anexar">📎</button>
+      <button class="icon-btn" onclick="toggleEmojiPicker()" title="Emoji">☺</button>
+      <button id="recordBtn" class="icon-btn record-btn" onclick="startRecording()" title="Gravar áudio">🎙</button>
+      <button id="stopRecordBtn" class="icon-btn record-btn" onclick="stopRecording()" title="Parar gravação" style="display:none">■</button>
+      <input id="msgInput" type="text" placeholder="Digite sua resposta..." oninput="emitTyping()" onkeydown="if(event.key==='Enter') sendMessage()">
+      <button id="sendBtn" onclick="sendMessage()">Enviar</button>
+      <div id="filePreview" class="file-preview"></div>
+      <div id="recordStatus" class="record-status"></div>
+      <div id="emojiPicker" class="emoji-picker"></div>
+    </div>
+  </div>
+</div>
+
+<div id="connectionBanner" class="connection-banner"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const TOKEN = localStorage.getItem('token');
+const ROLE = localStorage.getItem('role');
+if (!TOKEN || ROLE !== 'vendor') window.location.href = '/login.html';
+function setAuthCookie(token) {
+  if (!token) return;
+  document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+}
+function clearAuthCookie() {
+  document.cookie = 'auth_token=; path=/; Max-Age=0; SameSite=Lax';
+}
+setAuthCookie(TOKEN);
+const socket = io({ auth: { token: TOKEN } });
+const MESSAGE_PAGE_SIZE = 50;
+
+let currentConvId = null;
+let quotedMessageId = null;
+let selectedFiles = [];
+let mediaRecorder = null;
+let recordingChunks = [];
+let recordingStartedAt = 0;
+let recordingTimer = null;
+let showingFavorites = false;
+let lastConnectionReady = null;
+let reconnectNoticeTimer = null;
+let lastRenderedConversationSignature = '';
+let messageLoadSeq = 0;
+let lastRenderedConversationId = null;
+let lastRenderedMessageSignature = '';
+let loadedMessages = [];
+let oldestLoadedMessageId = null;
+let activeMediaFilter = '';
+let pendingHighlightMessageId = null;
+let typingStopTimer = null;
+let typingClearTimer = null;
+let draftSaveTimer = null;
+let currentUser = null;
+const QUICK_EMOJIS = ['😀','😂','😊','👍','🙏','👏','🔥','❤️','✅','📎','📷','🎥','🎧','📄','🚚','💰','⚠️','❌','⭐','📍','🕐','🙌','🤝','💬'];
+
+function api(path, opts = {}) {
+  return fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}`, ...opts.headers }
+  });
+}
+
+async function init() {
+  currentUser = await api('/api/me').then(r => r.json());
+  document.getElementById('vendorName').textContent = `Olá, ${currentUser.name}`;
+}
+
+async function logout() {
+  try {
+    await api('/api/logout', { method: 'POST' });
+  } catch {}
+  clearAuthCookie();
+  localStorage.clear();
+  window.location.href = '/login.html';
+}
+
+function setConnectionBanner(kind, text, autoHideMs = 0) {
+  const banner = document.getElementById('connectionBanner');
+  banner.className = `connection-banner open ${kind}`;
+  banner.textContent = text;
+  clearTimeout(reconnectNoticeTimer);
+  if (autoHideMs > 0) {
+    reconnectNoticeTimer = setTimeout(() => {
+      banner.className = 'connection-banner';
+      banner.textContent = '';
+    }, autoHideMs);
+  }
+}
+
+function hideConnectionBanner() {
+  clearTimeout(reconnectNoticeTimer);
+  reconnectNoticeTimer = null;
+  const banner = document.getElementById('connectionBanner');
+  banner.className = 'connection-banner';
+  banner.textContent = '';
+}
+
+function connectionWarningText(data) {
+  if (data?.qr) return 'WhatsApp desconectado. O admin precisa ler o QR code para reconectar.';
+  if (data?.reconnecting) return data.message || 'WhatsApp caiu. Tentando reconectar...';
+  return data?.message || data?.error || 'WhatsApp desconectado. Envio pausado ate reconectar.';
+}
+
+function applyConnectionStatus(data) {
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) sendBtn.disabled = !data.ready;
+
+  if (data.ready) {
+    if (lastConnectionReady === false) {
+      setConnectionBanner('ok', data.message || 'WhatsApp reconectado e pronto.', 5000);
+    } else if (lastConnectionReady === null) {
+      hideConnectionBanner();
+    }
+  } else {
+    setConnectionBanner(data.reconnecting ? 'wait' : 'bad', connectionWarningText(data));
+  }
+  lastConnectionReady = Boolean(data.ready);
+}
+
+async function monitorConnection() {
+  try {
+    const data = await fetch('/api/status').then(r => r.json());
+    applyConnectionStatus(data);
+  } catch {
+    document.getElementById('sendBtn').disabled = true;
+    setConnectionBanner('bad', 'Sem comunicacao com o servidor. Envio pausado.');
+    lastConnectionReady = false;
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const normalized = String(value).trim().replace(' ', 'T');
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const date = new Date(hasTimezone ? normalized : `${normalized}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTime(value) {
+  const date = parseDate(value);
+  return date ? date.toLocaleString('pt-BR') : '';
+}
+
+function formatDateOnly(value) {
+  const date = parseDate(value);
+  return date ? date.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit', year:'numeric' }) : '';
+}
+
+function dateKey(value) {
+  const date = parseDate(value);
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function displayName(c) {
+  return c?.contact_name || String(c?.phone || '').replace('@c.us','').replace('@lid','').replace('@g.us','');
+}
+
+function renderUnreadBadge(c) {
+  const count = Number(c?.unread_count || 0);
+  return count > 0 ? `<span class="unread-badge">${count > 99 ? '99+' : count}</span>` : '';
+}
+
+function conversationPreview(c) {
+  return c?.last_message_preview || '';
+}
+
+function conversationStateActions(c) {
+  const pinned = Boolean(c.pinned_at);
+  return `<div class="conv-actions">
+    <button class="${pinned ? 'active' : ''}" onclick="toggleConversationPinned(event, ${c.id}, ${!pinned})" title="Fixar conversa">${pinned ? '★' : '☆'}</button>
+    <button onclick="markConversationUnread(event, ${c.id})" title="Marcar como não lida">●</button>
+  </div>`;
+}
+
+function conversationsSignature(convs) {
+  return JSON.stringify(convs.map(c => [
+    c.id,
+    c.updated_at,
+    c.last_message_at,
+    c.last_message_preview,
+    c.unread_count,
+    c.assigned_to,
+    c.status,
+    c.vendor_name,
+    c.sector_id,
+    c.sector_name,
+    c.profile_pic_url,
+    c.pinned_at,
+    c.marked_unread,
+    c.muted_until,
+    c.draft_text
+  ]));
+}
+
+function messagesSignature(msgs) {
+  return JSON.stringify(msgs.map(m => [
+    m.id,
+    m.created_at,
+    m.from_type,
+    m.content,
+    m.media_url,
+    m.media_filename,
+    m.media_unavailable,
+    m.delivery_status,
+    m.delivery_error,
+    m.starred,
+    m.quoted_message_id,
+    m.quoted_content,
+    activeMediaFilter
+  ]));
+}
+
+function avatarInitials(c) {
+  const name = displayName(c).replace(/[+@._-]/g, ' ').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1 && /^\d+$/.test(parts[0])) return parts[0].slice(-2);
+  return parts.slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase();
+}
+
+function renderAvatar(c, large = false) {
+  const initials = escapeHtml(avatarInitials(c));
+  const url = escapeHtml(c?.profile_pic_url || '');
+  return `<div class="avatar ${large ? 'avatar-large' : ''}" data-initials="${initials}">
+    ${url ? `<img src="${url}" alt="">` : initials}
+  </div>`;
+}
+
+function setupAvatarFallbacks(root = document) {
+  root.querySelectorAll('.avatar img').forEach(img => {
+    img.addEventListener('error', () => {
+      const avatar = img.closest('.avatar');
+      if (avatar) avatar.textContent = avatar.dataset.initials || '?';
+    }, { once:true });
+  });
+}
+
+function isUnavailableMediaText(value) {
+  return /^\(.+indisponível\)$/.test(String(value || ''));
+}
+
+function renderMedia(m) {
+  if (!m.media_url && Number(m.media_unavailable) === 1 && !isUnavailableMediaText(m.content)) {
+    return '<div class="media-block media-unavailable">Mídia indisponível</div>';
+  }
+  if (!m.media_url) return '';
+  const url = escapeHtml(m.media_url);
+  const filename = escapeHtml(m.media_filename || 'Anexo');
+  if (m.media_type === 'image' || m.media_type === 'sticker') {
+    return `<div class="media-block" onclick="event.stopPropagation()"><img src="${url}" alt="${filename}" loading="lazy" style="cursor:pointer" onclick="openMediaPreview(event,'${url}','${filename}')"></div>`;
+  }
+  if (m.media_type === 'audio') {
+    return `<div class="media-block" onclick="event.stopPropagation()"><audio controls src="${url}"></audio></div>`;
+  }
+  if (m.media_type === 'video') {
+    return `<div class="media-block" onclick="event.stopPropagation()"><video controls src="${url}"></video></div>`;
+  }
+  return `<div class="media-block" onclick="event.stopPropagation()"><a class="attachment-link" href="${url}" target="_blank">📎 ${filename}</a></div>`;
+}
+
+function deliveryLabel(m) {
+  if (m.from_type !== 'vendor') return '';
+  if (m.delivery_status === 'pending') return '<span class="delivery-status">enviando</span>';
+  if (m.delivery_status === 'failed') return '<span class="delivery-status failed">falhou</span>';
+  return '<span class="delivery-status">enviado</span>';
+}
+
+function renderQuotedMessage(m) {
+  if (!m.quoted_message_id) return '';
+  const quotedFrom = m.quoted_from_type === 'vendor'
+    ? escapeHtml(m.quoted_sender_name || 'Vendedor')
+    : 'Cliente';
+  let preview = '';
+  if (m.quoted_content) {
+    preview = escapeHtml(m.quoted_content);
+  } else if (m.quoted_media_url) {
+    const isImg = m.quoted_media_type === 'image' || m.quoted_media_type === 'sticker';
+    if (isImg) {
+      preview = `<img src="${escapeHtml(m.quoted_media_url)}" alt=""> <span class="q-media">${escapeHtml(m.quoted_media_filename || 'Foto')}</span>`;
+    } else {
+      preview = `<span class="q-media">${escapeHtml(m.quoted_media_filename || 'Mídia')}</span>`;
+    }
+  } else {
+    preview = '<span class="q-media">Mídia indisponível</span>';
+  }
+  return `<div class="msg-quoted"><div><div class="q-label">${quotedFrom}</div><div class="q-content">${preview}</div></div></div>`;
+}
+
+function renderMessageList(msgs) {
+  let lastDay = '';
+  return msgs.map(m => {
+    const currentDay = dateKey(m.created_at);
+    const separator = currentDay && currentDay !== lastDay
+      ? `<div class="date-separator">${escapeHtml(formatDateOnly(m.created_at))}</div>`
+      : '';
+    if (currentDay) lastDay = currentDay;
+    const label = m.sender_label || (m.from_type === 'client' ? 'Cliente' : m.from_type === 'vendor' ? 'Você' : '');
+    const content = m.content ? `<div class="msg-content">${escapeHtml(m.content)}</div>` : '';
+    return `${separator}<div class="msg ${escapeHtml(m.from_type)}" data-message-id="${m.id}">
+      <div class="msg-inner">
+        <div class="msg-main" onclick="replyToMessage(event, ${m.id})">
+          <div class="label">${label}</div>
+          ${renderQuotedMessage(m)}
+          ${renderMedia(m)}
+          ${content}
+          <div class="time">${escapeHtml(formatDateTime(m.created_at))}${deliveryLabel(m)}</div>
+        </div>
+        <div class="msg-actions">
+          <button class="star-btn ${Number(m.starred) === 1 ? 'active' : ''}" onclick="toggleStar(event, ${m.id}, ${Number(m.starred) !== 1})" title="Favoritar">${Number(m.starred) === 1 ? '★' : '☆'}</button>
+          <button class="reply-btn" onclick="replyToMessage(event, ${m.id})" title="Responder">↩</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setupEmojiPicker() {
+  document.getElementById('emojiPicker').innerHTML = QUICK_EMOJIS
+    .map(emoji => `<button type="button" onclick="insertEmoji('${emoji}')">${emoji}</button>`)
+    .join('');
+}
+
+function toggleEmojiPicker() {
+  document.getElementById('emojiPicker').classList.toggle('open');
+}
+
+function insertEmoji(emoji) {
+  const input = document.getElementById('msgInput');
+  const start = input.selectionStart || input.value.length;
+  const end = input.selectionEnd || input.value.length;
+  input.value = `${input.value.slice(0, start)}${emoji}${input.value.slice(end)}`;
+  input.focus();
+  input.selectionStart = input.selectionEnd = start + emoji.length;
+}
+
+function handleFileSelect(event) {
+  if (mediaRecorder?.state === 'recording') {
+    alert('Pare a gravação antes de anexar um arquivo.');
+    event.target.value = '';
+    return;
+  }
+  selectedFiles = [...(event.target.files || [])].map(file => ({ file, sendAsVoice: false }));
+  renderRecordingStatus('');
+  renderFilePreview();
+}
+
+function renderFilePreview() {
+  const preview = document.getElementById('filePreview');
+  if (!selectedFiles.length) {
+    preview.classList.remove('open');
+    preview.innerHTML = '';
+    return;
+  }
+  preview.classList.add('open');
+  preview.innerHTML = selectedFiles.map((item, index) => {
+    const label = item.sendAsVoice ? 'Áudio gravado' : item.file.name;
+    return `<div class="file-preview-row"><span>${escapeHtml(label)} · ${Math.ceil(item.file.size / 1024)} KB</span><button onclick="removeSelectedFile(${index})">Remover</button></div>`;
+  }).join('');
+}
+
+function removeSelectedFile(index) {
+  selectedFiles.splice(index, 1);
+  if (!selectedFiles.length) document.getElementById('fileInput').value = '';
+  renderFilePreview();
+}
+
+function clearSelectedFile() {
+  selectedFiles = [];
+  document.getElementById('fileInput').value = '';
+  renderRecordingStatus('');
+  renderFilePreview();
+}
+
+function getSupportedAudioMimeType() {
+  const options = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+  return options.find(type => window.MediaRecorder?.isTypeSupported?.(type)) || '';
+}
+
+function formatDuration(ms) {
+  const total = Math.floor(ms / 1000);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function setRecordingUi(active) {
+  document.getElementById('recordBtn').style.display = active ? 'none' : '';
+  document.getElementById('stopRecordBtn').style.display = active ? '' : 'none';
+  document.getElementById('stopRecordBtn').classList.toggle('recording', active);
+}
+
+function renderRecordingStatus(text, showCancel = false) {
+  const status = document.getElementById('recordStatus');
+  if (!text) {
+    status.classList.remove('open');
+    status.innerHTML = '';
+    return;
+  }
+  status.classList.add('open');
+  status.innerHTML = `<span>${escapeHtml(text)}</span>${showCancel ? '<button onclick="cancelRecording()">Cancelar áudio</button>' : ''}`;
+}
+
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    alert('Seu navegador não liberou gravação de áudio aqui.');
+    return;
+  }
+  if (mediaRecorder?.state === 'recording') return;
+
+  clearSelectedFile();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = getSupportedAudioMimeType();
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    recordingChunks = [];
+    mediaRecorder.ondataavailable = event => {
+      if (event.data?.size) recordingChunks.push(event.data);
+    };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop());
+      clearInterval(recordingTimer);
+      recordingTimer = null;
+      setRecordingUi(false);
+
+      const type = mediaRecorder.mimeType || mimeType || 'audio/webm';
+      const blob = new Blob(recordingChunks, { type });
+      if (!blob.size) {
+        renderRecordingStatus('');
+        alert('Não consegui capturar áudio.');
+        return;
+      }
+      const extension = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+      const filename = `audio-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
+      const audioFile = typeof File === 'function'
+        ? new File([blob], filename, { type })
+        : Object.assign(blob, { name: filename });
+      selectedFiles = [{ file: audioFile, sendAsVoice: true }];
+      renderRecordingStatus('');
+      renderFilePreview();
+    };
+    mediaRecorder.start();
+    recordingStartedAt = Date.now();
+    setRecordingUi(true);
+    renderRecordingStatus('Gravando 00:00');
+    recordingTimer = setInterval(() => {
+      renderRecordingStatus(`Gravando ${formatDuration(Date.now() - recordingStartedAt)}`);
+    }, 500);
+  } catch (err) {
+    setRecordingUi(false);
+    renderRecordingStatus('');
+    alert(`Não consegui acessar o microfone: ${err.message}`);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+  }
+}
+
+function cancelRecording() {
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.onstop = null;
+    mediaRecorder.stream?.getTracks().forEach(track => track.stop());
+    mediaRecorder.stop();
+  }
+  clearInterval(recordingTimer);
+  recordingTimer = null;
+  mediaRecorder = null;
+  recordingChunks = [];
+  setRecordingUi(false);
+  renderRecordingStatus('');
+  clearSelectedFile();
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function buildMessagePayloads() {
+  const content = document.getElementById('msgInput').value.trim();
+  if (!selectedFiles.length) {
+    const payload = { content, sendAsVoice: false, sendAsDocument: false };
+    if (quotedMessageId) payload.quoted_message_id = quotedMessageId;
+    return [payload];
+  }
+  return Promise.all(selectedFiles.map(async (item, index) => {
+    const payload = {
+      content: index === 0 ? content : '',
+      sendAsVoice: item.sendAsVoice,
+      sendAsDocument: false,
+      media: {
+        filename: item.file.name,
+        mimetype: item.file.type || 'application/octet-stream',
+        size: item.file.size,
+        messageType: item.sendAsVoice ? 'ptt' : '',
+        data: await readFileAsBase64(item.file)
+      }
+    };
+    if (quotedMessageId && index === 0) payload.quoted_message_id = quotedMessageId;
+    return payload;
+  }));
+}
+
+function replyToMessage(event, messageId) {
+  event.stopPropagation();
+  const msgEl = event.currentTarget.closest('.msg');
+  const fromLabel = msgEl?.querySelector('.label')?.textContent || '';
+  const preview = msgEl?.querySelector('.msg-content')?.textContent || msgEl?.querySelector('.media-block')?.textContent || 'Mídia';
+  quotedMessageId = messageId;
+  document.getElementById('quoteLabel').textContent = fromLabel ? `Respondendo ${fromLabel}` : 'Responder';
+  document.getElementById('quotePreview').textContent = preview.substring(0, 100);
+  document.getElementById('quoteBar').classList.add('open');
+  document.getElementById('msgInput').focus();
+}
+
+function cancelReply() {
+  quotedMessageId = null;
+  document.getElementById('quoteBar').classList.remove('open');
+}
+
+async function toggleStar(event, messageId, starred) {
+  event.stopPropagation();
+  await api(`/api/messages/${messageId}/star`, {
+    method: 'PATCH',
+    body: JSON.stringify({ starred })
+  });
+  if (currentConvId) await loadMessages(currentConvId);
+  if (showingFavorites) await loadFavorites();
+}
+
+function messagesUrl(id, extra = '') {
+  const mediaQuery = activeMediaFilter ? `&media_type=${encodeURIComponent(activeMediaFilter)}` : '';
+  return `/api/conversations/${id}/messages?limit=${MESSAGE_PAGE_SIZE}${extra}${mediaQuery}`;
+}
+
+function updateLoadOlderButton(lastPageSize) {
+  const btn = document.getElementById('loadOlderBtn');
+  if (!btn) return;
+  btn.style.display = currentConvId && oldestLoadedMessageId && lastPageSize >= MESSAGE_PAGE_SIZE ? '' : 'none';
+}
+
+function highlightMessage(messageId) {
+  if (!messageId) return;
+  const item = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (!item) return;
+  item.classList.add('highlight');
+  item.scrollIntoView({ block: 'center' });
+  setTimeout(() => item.classList.remove('highlight'), 2600);
+}
+
+async function loadOlderMessages() {
+  if (!currentConvId || !oldestLoadedMessageId) return;
+  const list = document.getElementById('messagesList');
+  const previousHeight = list.scrollHeight;
+  const older = await api(`/api/conversations/${currentConvId}/messages?limit=${MESSAGE_PAGE_SIZE}&before_id=${oldestLoadedMessageId}${activeMediaFilter ? `&media_type=${encodeURIComponent(activeMediaFilter)}` : ''}`).then(r => r.json());
+  if (!older.length) {
+    updateLoadOlderButton(0);
+    return;
+  }
+  loadedMessages = [...older, ...loadedMessages];
+  oldestLoadedMessageId = loadedMessages[0]?.id || null;
+  list.innerHTML = renderMessageList(loadedMessages);
+  list.scrollTop = list.scrollHeight - previousHeight;
+  updateLoadOlderButton(older.length);
+}
+
+async function changeMediaFilter() {
+  activeMediaFilter = document.getElementById('mediaFilter').value;
+  lastRenderedMessageSignature = '';
+  if (currentConvId) await loadMessages(currentConvId, { force: true });
+}
+
+async function updateConversationState(id, patch) {
+  return api(`/api/conversations/${id}/state`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  }).then(r => r.json());
+}
+
+async function toggleConversationPinned(event, id, pinned) {
+  event.stopPropagation();
+  await updateConversationState(id, { pinned });
+  await loadConversations({ force: true });
+}
+
+async function markConversationUnread(event, id) {
+  event.stopPropagation();
+  await updateConversationState(id, { marked_unread: true });
+  await loadConversations({ force: true });
+}
+
+async function performGlobalSearch() {
+  const q = document.getElementById('globalSearch').value.trim();
+  if (!q && !activeMediaFilter) {
+    showingFavorites = false;
+    await loadConversations({ force: true });
+    return;
+  }
+  const data = await api(`/api/search?q=${encodeURIComponent(q)}&media_type=${encodeURIComponent(activeMediaFilter)}`).then(r => r.json());
+  renderSearchResults(data);
+}
+
+function renderSearchResults(data) {
+  showingFavorites = false;
+  document.getElementById('favoritesToggle').textContent = 'Favoritas';
+  const list = document.getElementById('convList');
+  const conversationItems = (data.conversations || []).map(c => `
+    <div class="conv-item ${c.id === currentConvId ? 'active' : ''}" onclick="selectConv(${c.id})">
+      ${renderAvatar(c)}
+      <div class="conv-details">
+        <div class="name conv-title"><span>${escapeHtml(displayName(c))}</span>${renderUnreadBadge(c)}</div>
+        <div class="preview">${escapeHtml(c.phone || '')}</div>
+        <div class="meta">${escapeHtml(formatDateTime(c.updated_at))}</div>
+      </div>
+      ${conversationStateActions(c)}
+    </div>`).join('');
+  const messageItems = (data.messages || []).map(m => `
+    <div class="fav-item" onclick="selectConv(${m.conversation_id}, { targetMessageId: ${m.target_message_id || m.id} })">
+      <div class="name">${escapeHtml(m.contact_name || m.phone)}</div>
+      <div class="preview">${escapeHtml(m.content || m.media_filename || 'Mídia')}</div>
+      <div class="meta">${escapeHtml(formatDateTime(m.created_at))}</div>
+    </div>`).join('');
+  list.innerHTML = `
+    <div class="search-section">Conversas</div>
+    ${conversationItems || '<div class="fav-item"><div class="meta">Nenhuma conversa encontrada</div></div>'}
+    <div class="search-section">Mensagens</div>
+    ${messageItems || '<div class="fav-item"><div class="meta">Nenhuma mensagem encontrada</div></div>'}
+  `;
+  setupAvatarFallbacks(list);
+}
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function showBrowserNotification(event) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible' && Number(event.conversationId) === Number(currentConvId)) return;
+  const notification = new Notification(event.title || 'Nova mensagem', { body: event.body || '' });
+  notification.onclick = () => {
+    window.focus();
+    selectConv(event.conversationId, { targetMessageId: event.messageId });
+    notification.close();
+  };
+}
+
+function emitTyping() {
+  if (!currentConvId) return;
+  socket.emit('typing:update', { conversationId: currentConvId, typing: true });
+  clearTimeout(typingStopTimer);
+  typingStopTimer = setTimeout(() => {
+    socket.emit('typing:update', { conversationId: currentConvId, typing: false });
+  }, 2500);
+  scheduleDraftSave();
+}
+
+function scheduleDraftSave() {
+  if (!currentConvId) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => {
+    updateConversationState(currentConvId, { draft_text: document.getElementById('msgInput').value });
+  }, 600);
+}
+
+function applyTypingStatus(event) {
+  if (Number(event.conversationId) !== Number(currentConvId)) return;
+  if (currentUser && event.role === currentUser.role && Number(event.userId) === Number(currentUser.id)) return;
+  const el = document.getElementById('typingStatus');
+  el.textContent = event.typing ? `${event.name || 'Usuário'} digitando...` : '';
+  clearTimeout(typingClearTimer);
+  if (event.typing) typingClearTimer = setTimeout(() => { el.textContent = ''; }, 3500);
+}
+
+async function loadFavorites() {
+  const messages = await api('/api/messages/starred').then(r => r.json());
+  const list = document.getElementById('convList');
+  list.innerHTML = `
+    <div class="favorite-search"><input id="favoriteSearch" placeholder="Buscar favoritas..." oninput="loadFavoritesSearch()"></div>
+    <div id="favoriteList"></div>
+  `;
+  renderFavoriteItems(messages);
+}
+
+async function loadFavoritesSearch() {
+  const q = encodeURIComponent(document.getElementById('favoriteSearch')?.value || '');
+  const messages = await api(`/api/messages/starred?q=${q}`).then(r => r.json());
+  renderFavoriteItems(messages);
+}
+
+function renderFavoriteItems(messages) {
+  const list = document.getElementById('favoriteList');
+  if (!list) return;
+  list.innerHTML = messages.map(m => `
+    <div class="fav-item" onclick="selectConv(${m.conversation_id}, { targetMessageId: ${m.target_message_id || m.id} })">
+      <div class="name">${escapeHtml(m.contact_name || m.phone)}</div>
+      <div class="preview">${escapeHtml(m.content || m.media_filename || 'Mídia')}</div>
+      <div class="meta">${escapeHtml(formatDateTime(m.created_at))}</div>
+    </div>
+  `).join('') || '<div class="fav-item"><div class="meta">Nenhuma favorita encontrada</div></div>';
+}
+// exact favorite navigation pattern: selectConv(m.conversation_id, { targetMessageId: m.target_message_id })
+
+function toggleFavoritesView() {
+  showingFavorites = !showingFavorites;
+  document.getElementById('favoritesToggle').textContent = showingFavorites ? 'Conversas' : 'Favoritas';
+  if (showingFavorites) loadFavorites();
+  else loadConversations();
+}
+
+async function loadConversations({ force = false } = {}) {
+  if (showingFavorites) return;
+  const convs = await api('/api/conversations').then(r => r.json());
+  const signature = conversationsSignature(convs);
+  if (!force && lastRenderedConversationSignature === signature) return;
+  lastRenderedConversationSignature = signature;
+
+  const list = document.getElementById('convList');
+  list.innerHTML = convs.map(c => {
+    return `<div class="conv-item ${c.id === currentConvId ? 'active' : ''}" onclick="selectConv(${c.id})">
+      ${renderAvatar(c)}
+      <div class="conv-details">
+        <div class="name conv-title"><span>${escapeHtml(displayName(c))}</span>${renderUnreadBadge(c)}</div>
+        ${conversationPreview(c) ? `<div class="preview">${escapeHtml(conversationPreview(c))}</div>` : ''}
+        <div class="meta">${escapeHtml(formatDateTime(c.last_message_at || c.updated_at))}</div>
+      </div>
+      ${conversationStateActions(c)}
+    </div>`;
+  }).join('');
+  setupAvatarFallbacks(list);
+}
+
+async function selectConv(id, options = {}) {
+  cancelReply();
+  showingFavorites = false;
+  document.getElementById('favoritesToggle').textContent = 'Favoritas';
+  currentConvId = id;
+  pendingHighlightMessageId = options.targetMessageId || null;
+  lastRenderedConversationId = null;
+  lastRenderedMessageSignature = '';
+  activeMediaFilter = '';
+  document.getElementById('mediaFilter').value = '';
+  document.getElementById('typingStatus').textContent = '';
+  document.getElementById('noSelection').style.display = 'none';
+  document.getElementById('chatContainer').style.display = 'flex';
+
+  const convs = await api('/api/conversations').then(r => r.json());
+  const conv = convs.find(c => c.id === id);
+  document.getElementById('chatName').textContent = conv ? displayName(conv) : '...';
+  document.getElementById('chatPhone').textContent = conv?.phone || '';
+  const avatarSlot = document.getElementById('chatAvatarSlot');
+  avatarSlot.innerHTML = renderAvatar(conv || {}, true);
+  setupAvatarFallbacks(avatarSlot);
+  document.getElementById('msgInput').value = conv?.draft_text || '';
+  await loadMessages(id, { force: true });
+  await loadConversations({ force: true });
+}
+
+async function loadMessages(id, { force = false, preserveScroll = false } = {}) {
+  const requestId = ++messageLoadSeq;
+  const msgs = await api(messagesUrl(id)).then(r => r.json());
+  if (requestId !== messageLoadSeq || id !== currentConvId) return;
+
+  const signature = messagesSignature(msgs);
+  if (!force && lastRenderedConversationId === id && lastRenderedMessageSignature === signature) {
+    await markConversationRead(id);
+    return;
+  }
+
+  const list = document.getElementById('messagesList');
+  const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+  const shouldScrollToBottom = !preserveScroll || distanceFromBottom < 120;
+  loadedMessages = msgs;
+  oldestLoadedMessageId = loadedMessages[0]?.id || null;
+  list.innerHTML = renderMessageList(loadedMessages);
+  lastRenderedConversationId = id;
+  lastRenderedMessageSignature = signature;
+  if (shouldScrollToBottom) list.scrollTop = list.scrollHeight;
+  updateLoadOlderButton(msgs.length);
+  if (pendingHighlightMessageId) {
+    highlightMessage(pendingHighlightMessageId);
+    pendingHighlightMessageId = null;
+  }
+  await markConversationRead(id);
+}
+
+async function markConversationRead(id) {
+  await api(`/api/conversations/${id}/read`, { method: 'POST' });
+}
+
+async function refreshCurrentConversation() {
+  if (!currentConvId || showingFavorites) return;
+  await loadMessages(currentConvId, { preserveScroll: true });
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msgInput');
+  if (!currentConvId) return;
+  const payloads = sendPayloadsSequentially(await buildMessagePayloads());
+  if (!payloads.length) return;
+  for (const payload of payloads) {
+    const res = await api(`/api/conversations/${currentConvId}/messages`, {
+      method: 'POST', body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.delivery_status === 'failed') {
+      alert(data.error || data.delivery_error || 'Erro ao enviar mensagem');
+      return;
+    }
+  }
+  input.value = '';
+  updateConversationState(currentConvId, { draft_text: '' });
+  cancelReply();
+  document.getElementById('emojiPicker').classList.remove('open');
+  clearSelectedFile();
+  renderRecordingStatus('');
+  await loadMessages(currentConvId, { force: true });
+  await loadConversations({ force: true });
+}
+
+function sendPayloadsSequentially(payloads) {
+  return payloads.filter(payload => payload.content || payload.media);
+}
+
+function setupRealtime() {
+  socket.on('connect_error', () => {});
+  socket.on('connection:status', applyConnectionStatus);
+  socket.on('conversation:updated', () => {
+    if (!showingFavorites) loadConversations({ force: true });
+  });
+  socket.on('message:new', event => {
+    if (!showingFavorites) loadConversations({ force: true });
+    if (currentConvId && Number(event.conversationId) === Number(currentConvId)) {
+      loadMessages(currentConvId, { preserveScroll: true });
+    }
+  });
+  socket.on('notification:new', event => {
+    showBrowserNotification(event);
+    if (!showingFavorites) loadConversations({ force: true });
+  });
+  socket.on('typing:update', applyTypingStatus);
+}
+
+setupEmojiPicker();
+setupRealtime();
+init();
+monitorConnection();
+loadConversations();
+</script>
+
+<div id="mediaPreview" class="media-preview" onclick="closeMediaPreview()">
+  <button class="media-preview-close" onclick="event.stopPropagation();closeMediaPreview()">&times;</button>
+  <img id="mediaPreviewImg" src="" alt="">
+  <div class="media-preview-caption" id="mediaPreviewCaption"></div>
+</div>
+
+<script>
+function openMediaPreview(event, url, caption) {
+  if (event) event.stopPropagation();
+  document.getElementById('mediaPreviewImg').src = url;
+  document.getElementById('mediaPreviewCaption').textContent = caption || '';
+  document.getElementById('mediaPreview').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMediaPreview() {
+  document.getElementById('mediaPreview').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeMediaPreview();
+});
+</script>
+</body>
+</html>

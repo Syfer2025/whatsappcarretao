@@ -1,0 +1,23 @@
+services:
+  whatsapp-bot:
+    build: .
+    container_name: whatsapp-bot
+    restart: unless-stopped
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET antes de subir em producao}
+      CORS_ORIGIN: ${CORS_ORIGIN:?defina CORS_ORIGIN antes de subir em producao}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      MAX_MESSAGE_QUEUE_SIZE: ${MAX_MESSAGE_QUEUE_SIZE:-500}
+      MAX_OUTBOUND_MEDIA_BYTES: ${MAX_OUTBOUND_MEDIA_BYTES:-26214400}
+    volumes:
+      - ./data.db:/app/data.db
+      - ./media:/app/media
+      - ./.wwebjs_auth:/app/.wwebjs_auth
+      - ./.wwebjs_cache:/app/.wwebjs_cache

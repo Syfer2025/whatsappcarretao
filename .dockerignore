@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.git
+.DS_Store
+.env
+data.db
+data.db-shm
+data.db-wal
+media
+.wwebjs_auth
+.wwebjs_cache
+server.log
+docs
+*.test.js

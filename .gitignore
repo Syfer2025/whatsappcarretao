@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+
+data.db
+data.db-*
+server.log
+
+media/
+.wwebjs_auth/
+.wwebjs_cache/
+
+.DS_Store
