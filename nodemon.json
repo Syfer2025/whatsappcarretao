@@ -1,16 +1,6 @@
 {
   "watch": [
-    "server.js",
-    "adminServices.js",
-    "audioTranscoder.js",
-    "conversationProfile.js",
-    "db.js",
-    "historyImporter.js",
-    "mediaStorage.js",
-    "messageQueries.js",
-    "messageSender.js",
-    "schema.js",
-    "whatsappUtils.js",
+    "*.js",
     "frontend"
   ],
   "ext": "js,json,html,css",

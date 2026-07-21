@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
+<script src="/theme.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar Conta - WhatsApp AI</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f0f2f5; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+.card { background:white; padding:40px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.1); width:420px; max-width:100%; }
+.card h2 { font-size:24px; margin-bottom:4px; color:#075e54; }
+.card .sub { font-size:14px; color:#667781; margin-bottom:24px; }
+.card .brand { font-size:18px; font-weight:700; text-align:center; margin-bottom:24px; color:#075e54; }
+.card .brand span { color:#25d366; }
+.card label { display:block; font-size:13px; font-weight:600; color:#1a1a2e; margin-bottom:4px; }
+.card input,.card select { width:100%; padding:12px; margin-bottom:16px; border:1px solid #ddd; border-radius:8px; font-size:15px; outline:none; transition:border-color .2s; background:#fff; }
+.card input:focus,.card select:focus { border-color:#25d366; }
+.card button { width:100%; padding:12px; background:#25d366; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer; font-weight:600; transition:background .2s; }
+.card button:hover { background:#128C7E; }
+.card button:disabled { opacity:.5; cursor:not-allowed; }
+.turnstile-container { min-height:0; margin:0 0 16px; }
+.erro { color:#e74c3c; font-size:14px; margin-bottom:12px; display:none; }
+.sucesso { color:#25d366; font-size:14px; margin-bottom:12px; display:none; }
+.footer { text-align:center; margin-top:16px; font-size:13px; color:#667781; }
+.footer a { color:#25d366; text-decoration:none; font-weight:600; }
+
+/* ===== Tema escuro ===== */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="dark"] body { background:#0b141a; color:#e9edef; }
+[data-theme="dark"] .card { background:#111b21; box-shadow:0 10px 40px rgba(0,0,0,0.5); }
+[data-theme="dark"] .card h2 { color:#7fe0a3; }
+[data-theme="dark"] .card .sub { color:#8696a0; }
+[data-theme="dark"] .card .brand { color:#e9edef; }
+[data-theme="dark"] .card label { color:#aebac1; }
+[data-theme="dark"] .card input,[data-theme="dark"] .card select { background:#202c33; border-color:rgba(255,255,255,0.14); color:#e9edef; }
+[data-theme="dark"] .footer { color:#8696a0; }
+[data-theme="dark"] .erro { color:#f6a6ad; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand"><span>WhatsApp</span> AI</div>
+  <h2>Criar conta</h2>
+  <p class="sub">Teste todos os recursos por 3 dias. A cobrança começa somente depois do trial.</p>
+  <div class="erro" id="erro"></div>
+  <div class="sucesso" id="sucesso"></div>
+  <form id="registerForm" onsubmit="handleRegister(event)">
+    <label for="companyName">Nome da empresa</label>
+    <input type="text" id="companyName" maxlength="160" placeholder="Ex: Minha Empresa Ltda" required>
+
+    <label for="adminName">Seu nome</label>
+    <input type="text" id="adminName" maxlength="160" placeholder="Ex: Joao Silva" required>
+
+    <label for="email">E-mail (usuario de login)</label>
+    <input type="email" id="email" maxlength="254" placeholder="seu@email.com" required>
+
+    <label for="plan">Plano</label>
+    <select id="plan" required>
+      <option value="basico">Básico — até 5 vendedores</option>
+      <option value="profissional">Profissional — até 10 vendedores</option>
+    </select>
+
+    <label for="password">Senha</label>
+    <input type="password" id="password" placeholder="Mínimo 10 caracteres" minlength="10" autocomplete="new-password" required>
+
+    <div id="turnstileContainer" class="turnstile-container"></div>
+
+    <button type="submit" id="submitBtn">Iniciar trial de 3 dias</button>
+  </form>
+  <div class="footer">
+    Ja tem conta? <a href="/login.html">Entrar</a>
+  </div>
+</div>
+
+<script>
+let signupTurnstileRequired = false;
+let signupBillingAvailable = true;
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const erro = document.getElementById('erro');
+  const sucesso = document.getElementById('sucesso');
+  const btn = document.getElementById('submitBtn');
+  erro.style.display = 'none';
+  sucesso.style.display = 'none';
+
+  if (!signupBillingAvailable) {
+    erro.textContent = 'Cadastros temporariamente indisponíveis. Tente novamente mais tarde.';
+    erro.style.display = 'block';
+    return;
+  }
+
+  const companyName = document.getElementById('companyName').value.trim();
+  const adminName = document.getElementById('adminName').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const plan = document.getElementById('plan').value;
+  const turnstileToken = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+
+  if (new TextEncoder().encode(password).length > 72) {
+    erro.textContent = 'A senha deve ter no máximo 72 bytes UTF-8';
+    erro.style.display = 'block';
+    return;
+  }
+  if (signupTurnstileRequired && !turnstileToken) {
+    erro.textContent = 'Conclua a verificacao anti-robo';
+    erro.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyName, adminName, email, password, plan, turnstileToken })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      erro.textContent = data.error || 'Erro ao criar conta';
+      erro.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Iniciar trial de 3 dias';
+      if (window.turnstile) window.turnstile.reset();
+      return;
+    }
+
+    sucesso.textContent = data.checkout_url ? 'Conta criada! Abrindo pagamento seguro...' : 'Conta criada! Redirecionando...';
+    sucesso.style.display = 'block';
+    setTimeout(() => window.location.href = data.checkout_url || '/setup.html', 900);
+  } catch (err) {
+    erro.textContent = 'Erro de conexao';
+    erro.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Iniciar trial de 3 dias';
+    if (window.turnstile) window.turnstile.reset();
+  }
+}
+
+const selectedPlan = new URLSearchParams(window.location.search).get('plan');
+if (['basico', 'profissional'].includes(selectedPlan)) document.getElementById('plan').value = selectedPlan;
+
+fetch('/api/branding').then(r => r.json()).then(b => {
+  if (b.appName) {
+    document.title = 'Criar Conta - ' + b.appName;
+    document.querySelectorAll('.brand').forEach(el => { el.textContent = b.appName; });
+  }
+  if (b.signupConfigured === false || b.signupBillingConfigured === false) {
+    signupBillingAvailable = false;
+    const erro = document.getElementById('erro');
+    const btn = document.getElementById('submitBtn');
+    erro.textContent = 'Cadastros temporariamente indisponíveis. Tente novamente mais tarde.';
+    erro.style.display = 'block';
+    btn.disabled = true;
+    btn.textContent = 'Cadastro indisponível';
+  }
+  if (b.turnstileSiteKey) {
+    signupTurnstileRequired = true;
+    const container = document.getElementById('turnstileContainer');
+    container.classList.add('cf-turnstile');
+    container.dataset.sitekey = b.turnstileSiteKey;
+    container.dataset.action = 'signup';
+    container.dataset.theme = 'auto';
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+}).catch(() => {});
+</script>
+</body>
+</html>

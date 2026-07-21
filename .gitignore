@@ -6,9 +6,16 @@ node_modules/
 
 data.db
 data.db-*
+data/
+master.db
+master.db-*
+data_*.db
+*.db-shm
+*.db-wal
 server.log
 
 media/
+backups/
 .wwebjs_auth/
 .wwebjs_cache/
 

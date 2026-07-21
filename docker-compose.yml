@@ -1,23 +1,174 @@
+name: whatscarretao
+
 services:
-  whatsapp-bot:
+  whatscarretao:
     build: .
-    container_name: whatsapp-bot
+    image: ${APP_IMAGE:-whatscarretao:local}
+    container_name: whatscarretao
     restart: unless-stopped
+    init: true
+    user: '${APP_UID:-1000}:${APP_GID:-1000}'
+    stop_grace_period: ${DEPLOY_STOP_TIMEOUT:-120}s
     ports:
-      - "${HOST_BIND:-127.0.0.1}:3000:3000"
+      - '${HOST_BIND:-127.0.0.1}:3100:3100'
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3100
+      APP_MODE: internal
+      INTERNAL_SINGLE_TENANT: 'true'
+      INTERNAL_ADMIN_NAME: ${INTERNAL_ADMIN_NAME:-Super Admin}
+      INTERNAL_AGENT_LIMIT: ${INTERNAL_AGENT_LIMIT:-100}
+      DOMAIN: ${DOMAIN:?defina DOMAIN antes de subir em producao}
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET antes de subir em producao}
       CORS_ORIGIN: ${CORS_ORIGIN:?defina CORS_ORIGIN antes de subir em producao}
+      APP_URL: ${APP_URL:?defina APP_URL antes de subir em producao}
+      APP_NAME: ${APP_NAME:-WhatsCarretao}
+      APP_COMPANY: ${APP_COMPANY:-Auto Peças Carretão}
+      TENANT_NAME: ${TENANT_NAME:-Auto Peças Carretão}
+      TENANT_SUBDOMAIN: ${TENANT_SUBDOMAIN:-carretao}
+      COOKIE_SECURE: 'true'
+      BILLING_REQUIRED: 'false'
       LOG_LEVEL: ${LOG_LEVEL:-info}
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?defina ADMIN_USERNAME antes de subir em producao}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD antes de subir em producao}
       MAX_MESSAGE_QUEUE_SIZE: ${MAX_MESSAGE_QUEUE_SIZE:-500}
+      MAX_MESSAGE_QUEUE_BYTES: ${MAX_MESSAGE_QUEUE_BYTES:-67108864}
+      MAX_GLOBAL_MESSAGE_QUEUE_BYTES: ${MAX_GLOBAL_MESSAGE_QUEUE_BYTES:-268435456}
       MAX_OUTBOUND_MEDIA_BYTES: ${MAX_OUTBOUND_MEDIA_BYTES:-26214400}
+      MAX_INBOUND_MEDIA_BYTES: ${MAX_INBOUND_MEDIA_BYTES:-134217728}
+      INBOUND_MEDIA_GLOBAL_CONCURRENCY: ${INBOUND_MEDIA_GLOBAL_CONCURRENCY:-2}
+      INBOUND_MEDIA_TENANT_CONCURRENCY: ${INBOUND_MEDIA_TENANT_CONCURRENCY:-1}
+      INBOUND_MEDIA_MAX_PENDING: ${INBOUND_MEDIA_MAX_PENDING:-100}
+      INBOUND_MEDIA_SLOT_TIMEOUT_MS: ${INBOUND_MEDIA_SLOT_TIMEOUT_MS:-120000}
+      TENANT_MEDIA_QUOTA_BYTES: ${TENANT_MEDIA_QUOTA_BYTES:-10737418240}
+      MEDIA_GLOBAL_QUOTA_BYTES: ${MEDIA_GLOBAL_QUOTA_BYTES:-53687091200}
+      MIN_RUNTIME_FREE_DISK_MB: ${MIN_RUNTIME_FREE_DISK_MB:-1024}
+      FORWARD_MEDIA_TENANT_CONCURRENCY: ${FORWARD_MEDIA_TENANT_CONCURRENCY:-2}
+      FORWARD_MEDIA_GLOBAL_CONCURRENCY: ${FORWARD_MEDIA_GLOBAL_CONCURRENCY:-4}
+      OUTBOUND_SEND_TIMEOUT_MS: ${OUTBOUND_SEND_TIMEOUT_MS:-30000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      CLAMSCAN_PATH: ${CLAMSCAN_PATH:-}
+      CLAMSCAN_TIMEOUT_MS: ${CLAMSCAN_TIMEOUT_MS:-15000}
+      WA_BROWSER_MODE: isolated
+      WA_NO_SANDBOX: ${WA_NO_SANDBOX:-false}
+      WHATSAPP_HEADLESS: ${WHATSAPP_HEADLESS:-true}
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      WA_MAX_CONCURRENT_SESSIONS: '1'
+      WA_START_DEFAULT_SESSION: ${WA_START_DEFAULT_SESSION:-false}
+      WA_DISK_CACHE_BYTES: ${WA_DISK_CACHE_BYTES:-67108864}
+      WA_MEDIA_CACHE_BYTES: ${WA_MEDIA_CACHE_BYTES:-33554432}
+      WA_RESTORE_STAGGER_MS: ${WA_RESTORE_STAGGER_MS:-1500}
+      WA_HEALTH_CHECK_INTERVAL_MS: ${WA_HEALTH_CHECK_INTERVAL_MS:-30000}
+      WA_HEALTH_CHECK_TIMEOUT_MS: ${WA_HEALTH_CHECK_TIMEOUT_MS:-10000}
+      WA_HEALTH_CHECK_MAX_FAILURES: ${WA_HEALTH_CHECK_MAX_FAILURES:-2}
+      WA_STATE_STUCK_TIMEOUT_MS: ${WA_STATE_STUCK_TIMEOUT_MS:-120000}
+      WA_RECONNECT_BASE_MS: ${WA_RECONNECT_BASE_MS:-5000}
+      WA_RECONNECT_MAX_MS: ${WA_RECONNECT_MAX_MS:-60000}
+      # Nome legado: hoje limita somente os degraus do backoff, não o total de tentativas.
+      WA_RECONNECT_MAX_ATTEMPTS: ${WA_RECONNECT_MAX_ATTEMPTS:-5}
+      WA_PROXY_SERVER: ${WA_PROXY_SERVER:-}
+      # Pin de versão do WhatsApp Web (vazio = seguir a versão corrente). Usar
+      # quando uma versão nova quebra o whatsapp-web.js; o HTML precisa existir
+      # em .wwebjs_cache/.
+      WA_WEB_VERSION: ${WA_WEB_VERSION:-}
+      WHATSAPP_USER_AGENT: ${WHATSAPP_USER_AGENT:-}
+      MIN_SEND_INTERVAL_MS: ${MIN_SEND_INTERVAL_MS:-3000}
+      MAX_MESSAGES_PER_HOUR: ${MAX_MESSAGES_PER_HOUR:-250}
+      API_RATE_LIMIT_MAX: ${API_RATE_LIMIT_MAX:-240}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-20}
+      REGISTER_RATE_LIMIT_MAX: ${REGISTER_RATE_LIMIT_MAX:-5}
+      SOCKET_RATE_LIMIT_MAX: ${SOCKET_RATE_LIMIT_MAX:-60}
+      HISTORY_IMPORT_LIMIT: ${HISTORY_IMPORT_LIMIT:-50}
+      GET_CHATS_TIMEOUT_MS: ${GET_CHATS_TIMEOUT_MS:-15000}
+      HISTORY_CHAT_FETCH_TIMEOUT_MS: ${HISTORY_CHAT_FETCH_TIMEOUT_MS:-60000}
+      HISTORY_IMPORT_LOCK_WAIT_MS: ${HISTORY_IMPORT_LOCK_WAIT_MS:-30000}
+      RECENT_SYNC_INTERVAL_MS: ${RECENT_SYNC_INTERVAL_MS:-10000}
+      RECENT_SYNC_CHAT_LIMIT: ${RECENT_SYNC_CHAT_LIMIT:-35}
+      RECENT_SYNC_MESSAGE_LIMIT: ${RECENT_SYNC_MESSAGE_LIMIT:-50}
+      RECENT_SYNC_MAX_FETCH_LIMIT: ${RECENT_SYNC_MAX_FETCH_LIMIT:-500}
+      FULL_SYNC_MAX_FETCH_LIMIT: ${FULL_SYNC_MAX_FETCH_LIMIT:-2000}
+      FULL_SYNC_ABSOLUTE_MAX_FETCH_LIMIT: ${FULL_SYNC_ABSOLUTE_MAX_FETCH_LIMIT:-20000}
+      FULL_RECONCILE_INTERVAL_MS: ${FULL_RECONCILE_INTERVAL_MS:-900000}
+      CONVERSATION_SYNC_MESSAGE_LIMIT: ${CONVERSATION_SYNC_MESSAGE_LIMIT:-150}
+      CONVERSATION_SYNC_TIMEOUT_MS: ${CONVERSATION_SYNC_TIMEOUT_MS:-15000}
+      CONVERSATION_SYNC_SETTLE_MS: ${CONVERSATION_SYNC_SETTLE_MS:-2500}
+      CONVERSATION_SYNC_COOLDOWN_MS: ${CONVERSATION_SYNC_COOLDOWN_MS:-5000}
+      OLDER_SYNC_MAX_FETCH_LIMIT: ${OLDER_SYNC_MAX_FETCH_LIMIT:-20000}
+      OLDER_SYNC_TIMEOUT_MS: ${OLDER_SYNC_TIMEOUT_MS:-60000}
+      INCOMING_ENRICHMENT_CONCURRENCY: ${INCOMING_ENRICHMENT_CONCURRENCY:-2}
+      INCOMING_ENRICHMENT_MAX_PENDING: ${INCOMING_ENRICHMENT_MAX_PENDING:-500}
+      REALTIME_MEDIA_DOWNLOAD_ATTEMPTS: ${REALTIME_MEDIA_DOWNLOAD_ATTEMPTS:-4}
+      REALTIME_MEDIA_RETRY_BASE_DELAY_MS: ${REALTIME_MEDIA_RETRY_BASE_DELAY_MS:-750}
+      REALTIME_MEDIA_REPAIR_MAX_ATTEMPTS: ${REALTIME_MEDIA_REPAIR_MAX_ATTEMPTS:-5}
+      REALTIME_MEDIA_REPAIR_LOOKBACK_HOURS: ${REALTIME_MEDIA_REPAIR_LOOKBACK_HOURS:-24}
+      REALTIME_MEDIA_REPAIR_BATCH_LIMIT: ${REALTIME_MEDIA_REPAIR_BATCH_LIMIT:-100}
+      CONTACT_SYNC_INTERVAL_MS: ${CONTACT_SYNC_INTERVAL_MS:-21600000}
+      CONTACT_SYNC_MANUAL_COOLDOWN_MS: ${CONTACT_SYNC_MANUAL_COOLDOWN_MS:-30000}
+      TENANT_DB_IDLE_MS: ${TENANT_DB_IDLE_MS:-600000}
+      TENANT_DB_SWEEP_MS: ${TENANT_DB_SWEEP_MS:-60000}
+      SQLITE_SYNCHRONOUS: FULL
+      SINGLE_WRITER_LEASE_TTL_MS: ${SINGLE_WRITER_LEASE_TTL_MS:-90000}
+      SINGLE_WRITER_LEASE_HEARTBEAT_MS: ${SINGLE_WRITER_LEASE_HEARTBEAT_MS:-20000}
+      # Pior caso sequencial: HTTP + fila + enriquecimento + mídia + WhatsApp
+      # = 105 s. O grace period padrão deixa 15 s adicionais para SQLite/saída.
+      SHUTDOWN_DRAIN_TIMEOUT_MS: ${SHUTDOWN_DRAIN_TIMEOUT_MS:-15000}
+      SHUTDOWN_HTTP_TIMEOUT_MS: ${SHUTDOWN_HTTP_TIMEOUT_MS:-15000}
+      SHUTDOWN_WHATSAPP_TIMEOUT_MS: ${SHUTDOWN_WHATSAPP_TIMEOUT_MS:-25000}
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-4}
+      BACKUP_LOCK_STALE_MS: ${BACKUP_LOCK_STALE_MS:-86400000}
+      # Também vale para o backup periódico executado via docker compose exec.
+      # Sem esta reserva, um snapshot completo podia consumir os últimos bytes
+      # do volume e derrubar SQLite/Chromium mesmo que o deploy fosse protegido.
+      BACKUP_FREE_MARGIN_MB: ${BACKUP_FREE_MARGIN_MB:-2048}
+      HOME: /tmp
+      XDG_CONFIG_HOME: /tmp/chrome-config
+      XDG_CACHE_HOME: /app/.wwebjs_cache
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    shm_size: '1gb'
+    pids_limit: ${PIDS_LIMIT:-768}
+    mem_limit: ${MEMORY_LIMIT:-4g}
+    cpus: '${CPU_LIMIT:-2.0}'
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: json-file
+      options:
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-5}'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3100/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
     volumes:
-      - ./data.db:/app/data.db
+      # Bind mounts ficam dentro deste fork e não compartilham estado com o produto original.
+      # data/ contém os bancos SQLite e seus arquivos -wal/-shm.
+      # Montar a PASTA inteira garante que o WAL persista — montar arquivos .db
+      # avulsos perdia o -wal a cada restart e apagava clientes cadastrados.
+      - ./data:/app/data
       - ./media:/app/media
       - ./.wwebjs_auth:/app/.wwebjs_auth
       - ./.wwebjs_cache:/app/.wwebjs_cache
+      - ./backups:/app/backups

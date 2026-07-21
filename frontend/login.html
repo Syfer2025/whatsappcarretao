@@ -1,47 +1,236 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
+<script src="/theme.js" defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login - Atendimento</title>
+<title>Entrar | WhatsCarretao</title>
+<link rel="icon" type="image/svg+xml" href="/assets/carretao-mark.svg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f0f2f5; height:100vh; display:flex; align-items:center; justify-content:center; }
-.card { background:white; padding:40px; border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.1); width:380px; text-align:center; }
-.logo { max-width:160px; max-height:60px; margin-bottom:28px; display:block; margin-left:auto; margin-right:auto; }
-.card input { width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:8px; font-size:15px; outline:none; transition:border-color .2s; }
-.card input:focus { border-color:#25d366; }
-.card button { width:100%; padding:12px; background:#25d366; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer; font-weight:600; transition:background .2s; }
-.card button:hover { background:#128C7E; }
-.erro { color:#e74c3c; font-size:14px; margin-bottom:12px; display:none; }
+body { 
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+  background: linear-gradient(135deg, #e9ecef 0%, #d1d7db 100%); 
+  min-height: 100vh; 
+  min-height: 100dvh;
+  padding: 16px;
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+}
+.card { 
+  background: white; 
+  padding: 48px 40px; 
+  border-radius: 24px; 
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05); 
+  width: min(400px, 100%); 
+  text-align: center; 
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 6px;
+  background: linear-gradient(90deg, #25d366, #128C7E);
+}
+.brand-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.brand-logo img {
+  display: block;
+  width: min(270px, 100%);
+  height: auto;
+}
+/* O logotipo tem uma versão para fundo claro (cavalo escuro) e outra para fundo
+   escuro (cavalo branco). Trocamos conforme o tema para que o cavalo nunca fique
+   invisível sobre o próprio fundo. */
+.brand-logo .brand-logo-dark { display: none; }
+[data-theme="dark"] .brand-logo .brand-logo-light { display: none; }
+[data-theme="dark"] .brand-logo .brand-logo-dark { display: block; }
+.brand-system-name {
+  color: #111b21;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.brand-subtitle {
+  font-size: 14px;
+  color: #667781;
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+.input-group {
+  position: relative;
+  margin-bottom: 16px;
+  text-align: left;
+}
+.input-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #54656f;
+  margin-bottom: 8px;
+}
+.input-group small {
+  display: block;
+  margin-top: 7px;
+  color: #667781;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.card input { 
+  width: 100%; 
+  padding: 14px 16px; 
+  border: 1px solid #d1d7db; 
+  border-radius: 12px; 
+  font-size: 15px; 
+  outline: none; 
+  transition: all 0.2s; 
+  background: #f8f9fa;
+  color: #111b21;
+}
+.card input:focus { 
+  border-color: #25d366; 
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(37,211,102,0.1);
+}
+.card input::placeholder {
+  color: #8696a0;
+}
+.card button { 
+  width: 100%; 
+  padding: 14px; 
+  background: #25d366; 
+  color: white; 
+  border: none; 
+  border-radius: 12px; 
+  font-size: 16px; 
+  cursor: pointer; 
+  font-weight: 600; 
+  transition: all 0.2s; 
+  box-shadow: 0 4px 12px rgba(37,211,102,0.25);
+  margin-top: 8px;
+}
+.card button:hover { 
+  background: #128C7E; 
+  box-shadow: 0 6px 16px rgba(18,140,126,0.3);
+  transform: translateY(-1px);
+}
+.card button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(18,140,126,0.2);
+}
+.card button.loading {
+  background: #128C7E;
+  cursor: wait;
+  pointer-events: none;
+  animation: btnPulse 1.2s ease-in-out infinite;
+}
+.btn-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -4px;
+  margin-right: 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(18,140,126,0.35); }
+  50% { box-shadow: 0 4px 22px rgba(18,140,126,0.65); }
+}
+.erro { 
+  background: #fef2f2;
+  color: #dc2626; 
+  font-size: 14px; 
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 24px; 
+  display: none; 
+  border: 1px solid #fecaca;
+  font-weight: 500;
+}
+/* ===== Tema escuro ===== */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="dark"] body { background: linear-gradient(135deg, #0b141a 0%, #111b21 100%); }
+[data-theme="dark"] .card { background: #111b21; box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4); }
+[data-theme="dark"] .brand-system-name { color: #e9edef; }
+[data-theme="dark"] .brand-subtitle { color: #8696a0; }
+[data-theme="dark"] .input-group label { color: #aebac1; }
+[data-theme="dark"] .input-group small { color: #8696a0; }
+[data-theme="dark"] .card input { background: #202c33; border-color: rgba(255,255,255,0.14); color: #e9edef; }
+[data-theme="dark"] .card input:focus { background: #202c33; border-color: #25d366; }
+[data-theme="dark"] .erro { background: rgba(241,92,109,0.14); color: #f6a6ad; border-color: rgba(241,92,109,0.3); }
+
+@media (max-width: 480px) {
+  .card { padding: 40px 24px; border-radius: 20px; }
+  .brand-logo img { width: min(240px, 100%); }
+}
 </style>
 </head>
 <body>
 <div class="card">
-  <img class="logo" src="/logo.webp" alt="Logo">
+  <div class="brand-logo" id="brandLogo">
+    <img class="brand-logo-light" src="/assets/carretao-logo.svg" alt="Auto Peças Carretão" width="1929" height="1106">
+    <img class="brand-logo-dark" src="/assets/carretao-logo-dark.svg" alt="Auto Peças Carretão" width="1929" height="1106">
+    <div class="brand-system-name" id="brandSystemName">WhatsCarretao</div>
+  </div>
+  <div class="brand-subtitle">Sistema interno de atendimento<br>Auto Peças Carretão</div>
   <div class="erro" id="erro"></div>
-  <input type="text" id="username" placeholder="Usuário" autocomplete="off">
-  <input type="password" id="password" placeholder="Senha">
-  <button onclick="login()">Entrar</button>
+  
+  <div class="input-group">
+    <label for="username">E-mail ou usuário</label>
+    <input type="text" id="username" placeholder="Digite seu e-mail ou usuário" autocomplete="username" autocapitalize="none" spellcheck="false">
+  </div>
+  
+  <div class="input-group">
+    <label for="password">Senha</label>
+    <input type="password" id="password" placeholder="Digite sua senha" autocomplete="current-password">
+  </div>
+
+  <button id="loginBtn" onclick="login()">Entrar no WhatsCarretao</button>
 </div>
 
 <script>
-function setAuthCookie(token) {
-  if (!token) return;
-  document.cookie = `auth_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
-}
-
 async function login() {
+  const btn = document.getElementById('loginBtn');
+  if (btn?.disabled) return;
   const username = document.getElementById('username').value;
   const password = document.getElementById('password').value;
   const erro = document.getElementById('erro');
+  erro.style.display = 'none';
 
   if (!username || !password) {
-    erro.textContent = 'Preencha usuário e senha';
+    erro.textContent = 'Preencha o e-mail ou usuário e a senha';
     erro.style.display = 'block';
     return;
   }
 
+  const setLoading = loading => {
+    if (!btn) return;
+    btn.disabled = loading;
+    if (loading) {
+      btn.classList?.add('loading');
+      btn.innerHTML = '<span class="btn-spinner"></span>Entrando…';
+    } else {
+      btn.classList?.remove('loading');
+      btn.textContent = 'Entrar no WhatsCarretao';
+    }
+  };
+
+  setLoading(true);
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
@@ -51,21 +240,21 @@ async function login() {
     const data = await res.json();
 
     if (!res.ok) {
+      setLoading(false);
       erro.textContent = data.error;
       erro.style.display = 'block';
       return;
     }
 
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('role', data.role);
-    setAuthCookie(data.token);
-
+    // Mantém o botão em "Entrando…" durante o redirect — a página só troca
+    // quando o navegador carrega o destino, e reabilitar aqui piscaria o botão.
     if (data.role === 'admin') {
-      window.location.href = '/admin.html';
+      window.location.href = data.super_admin ? '/superadmin.html' : '/admin.html';
     } else {
       window.location.href = '/vendor.html';
     }
   } catch (err) {
+    setLoading(false);
     erro.textContent = 'Erro de conexão';
     erro.style.display = 'block';
   }
@@ -73,6 +262,14 @@ async function login() {
 
 document.getElementById('username').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+fetch('/api/branding').then(r => r.json()).then(b => {
+  if (b.appName) {
+    document.title = `Login - ${b.appName}`;
+    const systemName = document.getElementById('brandSystemName');
+    if (systemName) systemName.textContent = b.appName;
+  }
+}).catch(() => {});
 </script>
 </body>
 </html>

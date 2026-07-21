@@ -15,7 +15,16 @@ function withTimeout(promiseOrFactory, timeoutMs, label) {
 
   let timeout;
   const timeoutPromise = new Promise((_, reject) => {
-    timeout = setTimeout(() => reject(new Error(`${label} excedeu ${timeoutMs}ms`)), timeoutMs);
+    timeout = setTimeout(() => {
+      const error = new Error(`${label} excedeu ${timeoutMs}ms`);
+      // Consumers must not need to parse a localized error message to decide
+      // whether retrying would overlap an operation that is still running. A
+      // Promise.race cannot cancel Puppeteer/Chromium work already dispatched.
+      error.code = 'OPERATION_TIMEOUT';
+      error.operation = label;
+      error.timeoutMs = timeoutMs;
+      reject(error);
+    }, timeoutMs);
   });
 
   return Promise.race([work, timeoutPromise]).finally(() => clearTimeout(timeout));

@@ -1,7 +1,10 @@
 const IMPORTABLE_SUFFIXES = ['@c.us', '@lid', '@g.us'];
 
 function getChatId(chatOrMessage) {
-  const rawId = chatOrMessage?.id?._serialized ?? chatOrMessage?.id ?? chatOrMessage;
+  const rawId = chatOrMessage?._serialized
+    ?? chatOrMessage?.id?._serialized
+    ?? chatOrMessage?.id
+    ?? chatOrMessage;
   return typeof rawId === 'string' ? rawId : '';
 }
 
@@ -65,9 +68,14 @@ function getSendChatId(savedPhoneOrChatId) {
 }
 
 function toSqlDate(timestampSeconds) {
+  return toSqlDateOrNull(timestampSeconds)
+    || new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function toSqlDateOrNull(timestampSeconds) {
   const seconds = Number(timestampSeconds);
-  const date = Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : new Date();
-  return date.toISOString().slice(0, 19).replace('T', ' ');
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return new Date(seconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
 function getMessageExternalId(msg) {
@@ -75,10 +83,33 @@ function getMessageExternalId(msg) {
   return typeof id === 'string' ? id : null;
 }
 
+function getWhatsAppMediaType(messageType) {
+  const type = String(messageType || '').toLowerCase();
+  if (type === 'image') return 'image';
+  if (type === 'sticker') return 'sticker';
+  if (type === 'audio' || type === 'ptt') return 'audio';
+  if (type === 'video' || type === 'gif') return 'video';
+  if (type === 'document') return 'document';
+  return null;
+}
+
+function hasPotentialMedia(msg) {
+  return Boolean(msg?.hasMedia || getWhatsAppMediaType(msg?.type));
+}
+
 function getMessageContent(msg) {
   const body = typeof msg?.body === 'string' ? msg.body.trim() : '';
   if (body) return body;
-  return msg?.hasMedia ? '(mídia)' : '';
+  return hasPotentialMedia(msg) ? '(mídia)' : '';
+}
+
+// whatsapp-web.js emite `message_create` para mensagens recebidas e enviadas;
+// em seguida emite também `message` para as recebidas. Cada direção precisa de
+// uma única fonte para não baixar mídia e persistir a mesma mensagem duas vezes.
+function shouldProcessMessageEvent(msg, source) {
+  if (source === 'message_create') return Boolean(msg?.fromMe);
+  if (source === 'message') return !msg?.fromMe;
+  return Boolean(msg);
 }
 
 module.exports = {
@@ -88,6 +119,10 @@ module.exports = {
   shouldReplaceDisplayName,
   getSendChatId,
   toSqlDate,
+  toSqlDateOrNull,
   getMessageExternalId,
-  getMessageContent
+  getMessageContent,
+  shouldProcessMessageEvent,
+  getWhatsAppMediaType,
+  hasPotentialMedia
 };

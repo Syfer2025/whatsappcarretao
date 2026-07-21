@@ -1,0 +1,67 @@
+# Reverse proxy SSL para WhatsCarretao (edição interna, single-tenant).
+# Use um único domínio da Auto Peças Carretão; não é necessário DNS wildcard.
+#
+# Uso:
+#   sudo ln -s /etc/nginx/sites-available/whatscarretao /etc/nginx/sites-enabled/
+#   sudo certbot --nginx -d app.suaempresa.com.br
+
+# Estas diretivas ficam no contexto http (sites-enabled já é incluído dentro
+# dele nas distribuições Debian/Ubuntu).
+limit_req_zone $binary_remote_addr zone=whatscarretao_requests:10m rate=30r/s;
+limit_conn_zone $binary_remote_addr zone=whatscarretao_connections:10m;
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name app.suaempresa.com.br;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name app.suaempresa.com.br;
+
+    ssl_certificate     /etc/letsencrypt/live/app.suaempresa.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.suaempresa.com.br/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    server_tokens off;
+
+    # 25 MiB binários viram ~33,4 MiB em JSON/base64. 50M mantém o proxy
+    # alinhado ao parser da aplicação sem aceitar corpos ilimitados.
+    client_max_body_size 50M;
+    client_header_timeout 15s;
+    client_body_timeout 30s;
+    keepalive_timeout 30s;
+    send_timeout 60s;
+    large_client_header_buffers 4 16k;
+
+    # Segunda barreira contra rajadas/Slowloris; a aplicação mantém também os
+    # limites por conta, login e socket.
+    limit_conn whatscarretao_connections 50;
+    limit_req zone=whatscarretao_requests burst=120 nodelay;
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_connect_timeout 10s;
+    }
+
+    access_log /var/log/nginx/whatscarretao-access.log;
+    error_log  /var/log/nginx/whatscarretao-error.log;
+}

@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<script>
+  /* Aplica o tema antes da renderização para evitar flash. Espelha /theme.js. */
+  (function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin - WhatsApp AI</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f0f2f5; color:#1a1a2e; display:flex; }
+
+/* ===== Sidebar (estilo WordPress) ===== */
+.wp-sidebar { width:220px; flex-shrink:0; background:#1a1a2e; color:#c8c9cd; display:flex; flex-direction:column; height:100vh; position:sticky; top:0; }
+.wp-brand { padding:20px 18px; font-size:16px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; gap:8px; }
+.wp-brand .dot { width:8px; height:8px; border-radius:50%; background:#25d366; }
+.wp-nav { flex:1; padding:12px 0; overflow-y:auto; }
+.wp-nav-item { display:flex; align-items:center; gap:10px; padding:11px 18px; font-size:13.5px; font-weight:500; color:#c8c9cd; cursor:pointer; border-left:3px solid transparent; transition:.15s; user-select:none; }
+.wp-nav-item svg { width:16px; height:16px; flex-shrink:0; opacity:.85; }
+.wp-nav-item:hover { background:rgba(255,255,255,.06); color:#fff; }
+.wp-nav-item.active { background:rgba(37,211,102,.12); border-left-color:#25d366; color:#fff; }
+.wp-nav-item .count { margin-left:auto; background:rgba(255,255,255,.12); font-size:11px; font-weight:700; padding:1px 7px; border-radius:9px; }
+.wp-nav-item.active .count { background:#25d366; color:#0b1f14; }
+.wp-sidebar-footer { padding:14px 18px; border-top:1px solid rgba(255,255,255,.08); font-size:12.5px; }
+.wp-sidebar-footer a { color:#c8c9cd; text-decoration:none; display:block; padding:4px 0; }
+.wp-sidebar-footer a:hover { color:#fff; }
+
+/* ===== Main ===== */
+.wp-main { flex:1; min-width:0; height:100vh; overflow-y:auto; }
+.wp-topbar { background:#fff; border-bottom:1px solid #e9edef; padding:18px 28px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:5; }
+.wp-topbar h1 { font-size:19px; }
+.wp-topbar .sub { font-size:12.5px; color:#667781; margin-top:2px; }
+.wp-content { padding:24px 28px; }
+.btn { padding:9px 16px; background:#25d366; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.btn:hover { background:#128C7E; }
+.btn.ghost { background:#fff; color:#1a1a2e; border:1px solid #ddd; }
+.btn.ghost:hover { background:#f8f9fa; }
+
+.summary { display:flex; gap:16px; margin-bottom:22px; }
+.summary .box { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.04); padding:16px 20px; flex:1; }
+.summary .box .num { font-size:26px; font-weight:700; }
+.summary .box .label { font-size:12px; color:#667781; text-transform:uppercase; margin-top:2px; }
+
+.section-title { font-size:14px; font-weight:700; margin:26px 0 12px; color:#1a1a2e; }
+.card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.04); overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { background:#f8f9fa; padding:12px 14px; text-align:left; font-weight:600; color:#667781; font-size:12px; text-transform:uppercase; white-space:nowrap; }
+td { padding:12px 14px; border-top:1px solid #e9edef; vertical-align:middle; }
+td .status { display:inline-block; padding:3px 9px; border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; }
+td .status.active { background:#e8f5e9; color:#2e7d32; }
+td .status.trialing { background:#e3f2fd; color:#1565c0; }
+td .status.checkout_pending { background:#fff3e0; color:#e65100; }
+td .status.suspended { background:#fbe9e7; color:#c62828; }
+td .status.provisioning { background:#fff3e0; color:#e65100; }
+td .status.healthy { background:#e8f5e9; color:#2e7d32; }
+td .status.degraded { background:#fbe9e7; color:#c62828; }
+td .comp-badge { display:inline-block; margin-left:6px; padding:2px 7px; border-radius:8px; font-size:10px; font-weight:700; background:#fff3e0; color:#e65100; }
+td .limit-override { display:block; margin-top:3px; color:#e65100; font-size:10px; font-weight:700; }
+.btn-sm { padding:5px 10px;font-size:12px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;color:#1a1a2e;cursor:pointer;margin:2px;white-space:nowrap; }
+.btn-sm.primary { background:#25d366;color:#fff;border-color:#25d366; }
+.btn-sm.danger { background:#ea4335;color:#fff;border-color:#ea4335; }
+.btn-sm:hover { opacity:.85; }
+.muted { color:#667781; font-size:12px; }
+.empty { padding:40px; text-align:center; color:#667781; }
+.audit-detail { font-family:monospace; font-size:11px; color:#667781; }
+.setup-steps { padding-left:20px; font-size:13.5px; line-height:1.9; color:#1a1a2e; }
+.setup-steps code { background:#f0f2f5; padding:2px 6px; border-radius:4px; font-size:12px; }
+td.status-cell .status.past_due, td.status-cell .status.unpaid { background:#fbe9e7; color:#c62828; }
+td.status-cell .status.canceled { background:#f0f2f5; color:#667781; }
+
+.view { display:none; }
+.view.active { display:block; }
+
+/* ===== Atendimento de suporte ===== */
+.support-layout { display:grid; grid-template-columns:320px minmax(0,1fr); height:calc(100vh - 118px); min-height:520px; background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.04); overflow:hidden; }
+.support-inbox { border-right:1px solid #e9edef; min-width:0; display:flex; flex-direction:column; }
+.support-inbox-head { padding:15px 17px; border-bottom:1px solid #e9edef; font-size:13px; font-weight:700; }
+.support-thread-list { overflow:auto; flex:1; }
+.support-thread { width:100%; border:0; border-bottom:1px solid #f0f2f5; background:#fff; padding:13px 15px; text-align:left; cursor:pointer; display:grid; gap:4px; }
+.support-thread:hover,.support-thread.active { background:#f5f7f6; }
+.support-thread-title { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13.5px; font-weight:700; }
+.support-thread-preview { color:#667781; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.support-thread-meta { color:#8696a0; font-size:10.5px; }
+.support-unread { min-width:20px; height:20px; padding:0 6px; border-radius:99px; display:inline-flex; align-items:center; justify-content:center; background:#25d366; color:#fff; font-size:10px; font-weight:800; }
+.support-chat { min-width:0; min-height:0; display:flex; flex-direction:column; background:#efeae2; }
+.support-chat-head { flex:none; padding:14px 18px; background:#fff; border-bottom:1px solid #e9edef; }
+.support-chat-head strong { display:block; font-size:14px; }
+.support-chat-head span { color:#667781; font-size:11px; }
+.support-messages { flex:1; min-height:0; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:10px; }
+.support-empty { margin:auto; text-align:center; color:#8696a0; padding:30px; font-size:13px; }
+.support-bubble { max-width:min(72%,620px); padding:9px 12px; border-radius:10px; background:#fff; align-self:flex-start; color:#111b21; font-size:13.5px; line-height:1.45; box-shadow:0 1px 2px rgba(0,0,0,.08); white-space:pre-wrap; overflow-wrap:anywhere; }
+.support-bubble.super_admin { align-self:flex-end; background:#d9fdd3; }
+.support-bubble-time { margin-top:5px; color:#8696a0; font-size:10px; text-align:right; }
+.support-bubble img { display:block; max-width:100%; max-height:300px; object-fit:contain; border-radius:7px; margin-bottom:6px; }
+.support-bubble a { color:#128c7e; font-weight:700; }
+.support-composer { flex:none; display:flex; gap:9px; align-items:flex-end; padding:12px; background:#f0f2f5; border-top:1px solid #e9edef; }
+.support-composer textarea { flex:1; min-height:42px; max-height:130px; resize:none; border:1px solid #d1d7db; border-radius:10px; padding:10px 12px; font:inherit; outline:none; }
+.support-composer textarea:focus { border-color:#25d366; box-shadow:0 0 0 3px rgba(37,211,102,.12); }
+.support-attach { width:42px; height:42px; border:1px solid #d1d7db; border-radius:10px; background:#fff; cursor:pointer; }
+.support-file-name { position:absolute; left:-9999px; }
+@media (max-width:850px) { .support-layout { grid-template-columns:250px minmax(0,1fr); } }
+
+.modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; z-index:20; }
+.modal.open { display:flex; }
+.modal-content { background:#fff; border-radius:12px; padding:28px; width:380px; max-width:90vw; }
+.modal-content h3 { margin-bottom:16px; }
+.modal-content label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; margin-top:12px; }
+.modal-content input, .modal-content select { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px; background:#fff; color:#1a1a2e; }
+.modal-content .field-hint { display:block; margin-top:5px; color:#667781; font-size:11.5px; line-height:1.4; }
+.modal-content .actions { margin-top:20px; display:flex; gap:8px; justify-content:flex-end; }
+.modal-content .actions button { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-weight:600; }
+.modal-content .actions .save { background:#25d366; color:#fff; }
+.modal-content .actions .cancel { background:#f0f2f5; color:#1a1a2e; }
+
+/* ============================================================
+   TEMA ESCURO (paleta WhatsApp dark, unificada com admin/vendor). */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="dark"] body { background:#0b141a; color:#e9edef; }
+
+/* Barra lateral (já escura na base; alinhada à paleta) */
+[data-theme="dark"] .wp-sidebar { background:#111b21; }
+
+/* Topbar */
+[data-theme="dark"] .wp-topbar { background:#111b21; border-bottom-color:rgba(255,255,255,0.06); }
+[data-theme="dark"] .wp-topbar h1 { color:#e9edef; }
+[data-theme="dark"] .wp-topbar .sub { color:#8696a0; }
+
+/* Cartões, caixas e modais */
+[data-theme="dark"] .summary .box,
+[data-theme="dark"] .card,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .support-layout,
+[data-theme="dark"] .support-thread,
+[data-theme="dark"] .support-chat-head { background:#111b21; }
+[data-theme="dark"] .summary .box .label { color:#8696a0; }
+[data-theme="dark"] .section-title,
+[data-theme="dark"] .setup-steps { color:#e9edef; }
+[data-theme="dark"] .setup-steps code { background:#202c33; }
+[data-theme="dark"] .muted,
+[data-theme="dark"] .empty,
+[data-theme="dark"] .audit-detail { color:#8696a0; }
+
+/* Tabelas */
+[data-theme="dark"] th { background:#202c33; color:#8696a0; }
+[data-theme="dark"] td { border-top-color:rgba(255,255,255,0.08); }
+
+/* Botões neutros e campos (preserva primary/danger/save) */
+[data-theme="dark"] .btn.ghost { background:#202c33; color:#e9edef; border-color:rgba(255,255,255,0.14); }
+[data-theme="dark"] .btn.ghost:hover { background:#2a3942; }
+[data-theme="dark"] .btn-sm:not(.primary):not(.danger) { background:#202c33; color:#e9edef; border-color:rgba(255,255,255,0.14); }
+[data-theme="dark"] .modal-content input,
+[data-theme="dark"] .modal-content select { background:#202c33; color:#e9edef; border-color:rgba(255,255,255,0.14); }
+[data-theme="dark"] .modal-content .field-hint { color:#8696a0; }
+[data-theme="dark"] .modal-content .actions .cancel { background:#202c33; color:#e9edef; }
+[data-theme="dark"] .support-inbox,
+[data-theme="dark"] .support-inbox-head,
+[data-theme="dark"] .support-chat-head { border-color:rgba(255,255,255,.08); }
+[data-theme="dark"] .support-thread { color:#e9edef; border-bottom-color:rgba(255,255,255,.06); }
+[data-theme="dark"] .support-thread:hover,
+[data-theme="dark"] .support-thread.active { background:#202c33; }
+[data-theme="dark"] .support-chat { background:#0b141a; }
+[data-theme="dark"] .support-bubble { background:#202c33; color:#e9edef; }
+[data-theme="dark"] .support-bubble.super_admin { background:#005c4b; }
+[data-theme="dark"] .support-composer { background:#111b21; border-top-color:rgba(255,255,255,.08); }
+[data-theme="dark"] .support-composer textarea,
+[data-theme="dark"] .support-attach { background:#202c33; color:#e9edef; border-color:rgba(255,255,255,.12); }
+
+/* Scrollbars */
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background-color:rgba(255,255,255,0.16); }
+.btn-spinner{display:inline-block;width:14px;height:14px;border:2.5px solid rgba(255,255,255,0.35);border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<link rel="stylesheet" href="/chat-audio-player.css">
+</head>
+<body>
+
+<div class="wp-sidebar">
+  <div class="wp-brand"><span class="dot"></span> <span id="brandLabel">Super Admin</span></div>
+  <nav class="wp-nav">
+    <div class="wp-nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="wp-nav-item" data-view="clients" onclick="switchView('clients')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4 7 4v14"/><path d="M13 21V11h4v10"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>
+      Clientes
+      <span class="count" id="navClientsCount">0</span>
+    </div>
+    <div class="wp-nav-item" data-view="connections" onclick="switchView('connections')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+      Conexões
+    </div>
+    <div class="wp-nav-item" data-view="support" onclick="switchView('support')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Suporte
+      <span class="count" id="navSupportCount">0</span>
+    </div>
+    <div class="wp-nav-item" data-view="passwordResets" onclick="switchView('passwordResets')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg>
+      Recuperar senhas
+      <span class="count" id="navPasswordResetCount">0</span>
+    </div>
+    <div class="wp-nav-item" data-view="audit" onclick="switchView('audit')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+      Auditoria
+    </div>
+    <div class="wp-nav-item" data-view="stripe" onclick="switchView('stripe')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      Stripe
+    </div>
+  </nav>
+  <div class="wp-sidebar-footer">
+    <a href="/admin.html">← Painel de atendimento</a>
+    <a href="#" data-theme-toggle title="Alternar tema claro/escuro"><span data-theme-label>Modo Escuro</span></a>
+    <a href="#" onclick="logout()">Sair</a>
+  </div>
+</div>
+
+<div class="wp-main">
+  <div class="wp-topbar">
+    <div>
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="sub" id="pageSub">Visão geral da plataforma</div>
+    </div>
+    <button class="btn" id="topbarAction" onclick="openCreateModal()">+ Novo cliente</button>
+  </div>
+
+  <div class="wp-content">
+    <div class="view active" id="viewDashboard">
+      <div class="summary" id="summary"></div>
+      <div class="section-title">Atividade recente</div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Quando</th><th>Ator</th><th>Ação</th><th>Empresa</th></tr></thead>
+          <tbody id="recentActivityBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view" id="viewClients">
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Empresa</th>
+            <th>Conta</th>
+            <th>Cobrança</th>
+            <th>Saúde</th>
+            <th>Trial até</th>
+            <th>Plano</th>
+            <th>Usuários</th>
+            <th>Conversas</th>
+            <th>Criado em</th>
+            <th>Ação</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="actions" id="tenantPagination" style="justify-content:center;padding:14px;gap:10px">
+          <button class="btn-sm" id="tenantPrevious" type="button" onclick="changeTenantPage(-1)">Anterior</button>
+          <span class="muted" id="tenantPageLabel" aria-live="polite">Página 1</span>
+          <button class="btn-sm" id="tenantNext" type="button" onclick="changeTenantPage(1)">Próxima</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="viewConnections">
+      <div class="card">
+        <table>
+          <thead><tr><th>Empresa</th><th>Estado</th><th>Isolamento</th><th>Reconexão</th><th>Ações</th></tr></thead>
+          <tbody id="connectionsBody"><tr><td colspan="5" class="empty">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view" id="viewSupport">
+      <div class="support-layout">
+        <aside class="support-inbox">
+          <div class="support-inbox-head">Conversas com clientes</div>
+          <div class="support-thread-list" id="supportThreadList"><div class="empty">Carregando...</div></div>
+        </aside>
+        <section class="support-chat">
+          <div class="support-chat-head" id="supportChatHead"><strong>Selecione uma empresa</strong><span>As mensagens do botão “Precisa de ajuda?” aparecem aqui.</span></div>
+          <div class="support-messages" id="supportMessages"><div class="support-empty">Nenhuma conversa selecionada.</div></div>
+          <div class="support-composer" id="supportComposer" style="display:none">
+            <input id="supportFileInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="support-file-name" onchange="updateSupportFileName()">
+            <button class="support-attach" type="button" onclick="document.getElementById('supportFileInput').click()" title="Anexar arquivo" aria-label="Anexar arquivo">📎</button>
+            <textarea id="supportReplyInput" rows="1" placeholder="Responder ao cliente..." onkeydown="handleSupportReplyKey(event)"></textarea>
+            <button class="btn" id="supportSendBtn" type="button" onclick="sendSupportReply()">Enviar</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="view" id="viewPasswordResets">
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Solicitado em</th>
+            <th>Empresa</th>
+            <th>Administrador</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr></thead>
+          <tbody id="passwordResetBody"><tr><td colspan="5" class="empty">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view" id="viewAudit">
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Quando</th>
+            <th>Ator</th>
+            <th>Ação</th>
+            <th>Empresa</th>
+            <th>Detalhe</th>
+          </tr></thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="view" id="viewStripe">
+      <div class="card" style="padding:24px;margin-bottom:16px">
+        <h3 style="margin-bottom:6px">Chaves de integração</h3>
+        <p class="muted" style="margin-bottom:18px">Preencha as chaves do <strong>Stripe</strong> (cobrança) e, opcionalmente, do <strong>Turnstile</strong> (proteção anti-robô no cadastro). Campos de segredo mostram só os últimos dígitos quando já salvos — deixe em branco para manter o valor atual.</p>
+
+        <div class="section-title">Stripe</div>
+        <label>Chave secreta (Secret key)</label>
+        <input id="cfgStripeSecret" type="password" autocomplete="off" spellcheck="false" placeholder="sk_live_…">
+        <label>Webhook signing secret</label>
+        <input id="cfgStripeWebhook" type="password" autocomplete="off" spellcheck="false" placeholder="whsec_…">
+        <label>Price ID — plano Básico</label>
+        <input id="cfgStripePriceBasic" type="text" autocomplete="off" spellcheck="false" placeholder="price_…">
+        <label>Price ID — plano Profissional</label>
+        <input id="cfgStripePricePro" type="text" autocomplete="off" spellcheck="false" placeholder="price_…">
+
+        <div class="section-title" style="margin-top:20px">Turnstile — anti-robô (opcional)</div>
+        <label>Site key</label>
+        <input id="cfgTurnstileSite" type="text" autocomplete="off" spellcheck="false" placeholder="0x4AAAAA…">
+        <label>Secret key</label>
+        <input id="cfgTurnstileSecret" type="password" autocomplete="off" spellcheck="false" placeholder="0x4AAAAA…">
+
+        <div class="actions" style="margin-top:20px;justify-content:flex-start;gap:14px;align-items:center">
+          <button class="save" onclick="savePlatformConfig()">Salvar chaves</button>
+          <button class="btn" onclick="clearTurnstileConfig()">Desativar Turnstile</button>
+          <span id="cfgStatus" class="muted" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div id="stripeNotConfigured" style="display:none">
+        <div class="card" style="padding:28px">
+          <h3 style="margin-bottom:8px">Stripe ainda não está conectado</h3>
+          <p class="muted" style="margin-bottom:18px">Sem as chaves de produção configuradas, novos cadastros ficam indisponíveis para evitar contas incompletas. Siga os passos abaixo para ativar a cobrança real.</p>
+          <ol class="setup-steps">
+            <li>Crie uma conta em <strong>stripe.com</strong> (ou entre se já tiver).</li>
+            <li>Em <strong>Produtos</strong>, crie preços recorrentes distintos para os planos <strong>Básico</strong> e <strong>Profissional</strong> — copie os dois <strong>Price IDs</strong> (começam com <code>price_...</code>).</li>
+            <li>Ative o modo de produção da Stripe. Em <strong>Desenvolvedores → Chaves de API</strong>, copie a <strong>Chave secreta real</strong> (começa com <code>sk_live_...</code>).</li>
+            <li>Em <strong>Desenvolvedores → Webhooks</strong>, crie um endpoint apontando pra <code id="webhookUrlHint">https://seudominio/api/webhooks/stripe</code> e habilite <code>checkout.session.completed</code>, <code>customer.subscription.created</code>, <code>customer.subscription.updated</code>, <code>customer.subscription.deleted</code>, <code>customer.subscription.paused</code>, <code>customer.subscription.resumed</code>, <code>invoice.paid</code> e <code>invoice.payment_failed</code> — copie o <strong>Signing secret</strong> (começa com <code>whsec_...</code>).</li>
+            <li>Preencha os valores no formulário <strong>Chaves de integração</strong> (no topo desta aba) e clique em <strong>Salvar chaves</strong>.</li>
+          </ol>
+          <button class="btn" style="margin-top:18px" onclick="loadStripeOverview()">Já configurei, verificar de novo</button>
+        </div>
+      </div>
+
+      <div id="stripeConfigured" style="display:none">
+        <div class="summary" id="stripeSummary"></div>
+        <div class="section-title">Assinaturas</div>
+        <div class="card">
+          <table>
+            <thead><tr>
+              <th>Empresa</th>
+              <th>Status</th>
+              <th>Valor</th>
+              <th>Renova/termina em</th>
+            </tr></thead>
+            <tbody id="stripeSubsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="createModal">
+  <div class="modal-content">
+    <h3>Novo cliente</h3>
+    <label>Nome da empresa</label>
+    <input id="newCompanyName" maxlength="160" placeholder="Ex: Autopeças Carretão">
+    <label>E-mail do admin (login)</label>
+    <input id="newAdminEmail" type="email" maxlength="254" placeholder="admin@empresa.com">
+    <label>Senha inicial</label>
+    <input id="newAdminPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Mínimo 10 caracteres">
+    <label>Plano</label>
+    <select id="newPlan">
+      <option value="basico">Básico — até 5 usuários</option>
+      <option value="profissional">Profissional — até 10 usuários</option>
+    </select>
+    <div class="actions">
+      <button class="cancel" onclick="closeModal('createModal')">Cancelar</button>
+      <button class="save" onclick="submitCreate()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="editModal">
+  <div class="modal-content">
+    <h3>Editar cliente</h3>
+    <input id="editTenantId" type="hidden">
+    <label>Nome da empresa</label>
+    <input id="editName">
+    <label>Slug</label>
+    <input id="editSlug">
+    <label>Plano</label>
+    <select id="editPlan">
+      <option value="basico">Básico — até 5 usuários</option>
+      <option value="profissional">Profissional — até 10 usuários</option>
+    </select>
+    <label>Limite personalizado de usuários</label>
+    <input id="editUserLimitOverride" type="number" min="1" step="1" inputmode="numeric" placeholder="Usar limite do plano">
+    <span class="field-hint" id="editPlanHint">Deixe vazio para usar automaticamente o limite do plano (5 no Básico ou 10 no Profissional).</span>
+    <div class="actions">
+      <button class="cancel" onclick="closeModal('editModal')">Cancelar</button>
+      <button class="save" onclick="submitEdit()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="passwordResetModal">
+  <div class="modal-content">
+    <h3>Definir nova senha</h3>
+    <input id="passwordResetRequestId" type="hidden">
+    <p class="muted" id="passwordResetAccount"></p>
+    <label>Nova senha</label>
+    <input id="passwordResetNewPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Mínimo 10 caracteres">
+    <label>Confirmar nova senha</label>
+    <input id="passwordResetConfirmPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Digite a senha novamente">
+    <span class="field-hint">Ao confirmar, as sessões atuais desse administrador serão invalidadas.</span>
+    <div class="actions">
+      <button class="cancel" onclick="closeModal('passwordResetModal')">Cancelar</button>
+      <button class="save" id="passwordResetSaveButton" onclick="submitPasswordReset()">Alterar senha</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="connectionQrModal">
+  <div class="modal-content">
+    <h3>Conectar WhatsApp</h3>
+    <p class="muted" id="connectionQrTenant"></p>
+    <div id="connectionQrImage" style="display:flex;justify-content:center;min-height:260px;align-items:center"></div>
+    <div class="actions"><button class="cancel" onclick="closeConnectionQr()">Fechar</button></div>
+  </div>
+</div>
+
+<script src="/theme.js"></script>
+<script src="/session-privacy.js"></script>
+<script src="/tooltips.js"></script>
+<script src="/chat-audio-player.js"></script>
+<script src="/csrf-client.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+socket.on('auth:session-replaced', () => window.location.replace('/login.html?session=replaced'));
+let currentSupportThreadId = null;
+let cachedSupportThreads = [];
+let supportSending = false;
+let currentSupportMessages = [];
+let supportHasMore = false;
+let supportNextBeforeId = null;
+let supportLoadingOlder = false;
+let supportOpenSequence = 0;
+let supportOlderSequence = 0;
+let supportInboxSequence = 0;
+
+fetch('/api/me', { credentials: 'same-origin' }).then(res => {
+  if (!res.ok) window.location.href = '/login.html';
+  else return res.json().then(user => { if (!user.super_admin) window.location.href = '/login.html'; });
+}).catch(() => { window.location.href = '/login.html'; });
+
+function isMutatingMethod(method) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
+}
+
+async function ensureCsrfToken(options = {}) {
+  return window.CsrfClient.ensureToken(options);
+}
+
+async function api(url, opts = {}) {
+  const headers = { ...opts.headers };
+  if (opts.body && typeof opts.body === 'object') headers['Content-Type'] = 'application/json';
+  return window.CsrfClient.fetch(url, { ...opts, headers, credentials: 'same-origin', body: opts.body && typeof opts.body === 'object' ? JSON.stringify(opts.body) : opts.body });
+}
+
+function escape(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function statusLabel(status) {
+  if (status === 'active') return 'Ativo';
+  if (status === 'trialing') return 'Trial';
+  if (status === 'checkout_pending') return 'Pagamento pendente';
+  return 'Suspenso';
+}
+
+function operationalStatusLabel(status) {
+  if (status === 'active') return 'Operacional';
+  if (status === 'provisioning') return 'Provisionando';
+  return 'Conta suspensa';
+}
+
+function dbHealthLabel(health) {
+  if (health === 'missing') return 'Banco ausente';
+  if (health === 'integrity_error') return 'Banco corrompido';
+  return 'Banco indisponível';
+}
+
+function passwordUtf8Bytes(value) {
+  return new TextEncoder().encode(String(value || '')).length;
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d)) return '-';
+  return d.toLocaleDateString('pt-BR');
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  const d = new Date(value.includes('T') ? value : value.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return '-';
+  return d.toLocaleString('pt-BR');
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+const VIEWS = {
+  dashboard: { title: 'Dashboard', sub: 'Visão geral da plataforma', action: { label: '+ Novo cliente', fn: 'openCreateModal' } },
+  clients: { title: 'Clientes', sub: 'Todas as empresas cadastradas na plataforma', action: { label: '+ Novo cliente', fn: 'openCreateModal' } },
+  connections: { title: 'Conexões', sub: 'Sessões WhatsApp isoladas por empresa', action: { label: 'Atualizar', fn: 'loadConnections' } },
+  support: { title: 'Suporte', sub: 'Conversa direta com os administradores dos clientes', action: null },
+  passwordResets: { title: 'Recuperar senhas', sub: 'Solicitações pendentes dos administradores dos clientes', action: { label: 'Atualizar', fn: 'loadPasswordResetRequests' } },
+  audit: { title: 'Auditoria', sub: 'Histórico de ações administrativas', action: null },
+  stripe: { title: 'Stripe', sub: 'Assinaturas e receita — dados reais direto do Stripe', action: null }
+};
+
+function switchView(view) {
+  document.querySelectorAll('.wp-nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view' + view.charAt(0).toUpperCase() + view.slice(1)).classList.add('active');
+
+  const cfg = VIEWS[view];
+  document.getElementById('pageTitle').textContent = cfg.title;
+  document.getElementById('pageSub').textContent = cfg.sub;
+  const actionBtn = document.getElementById('topbarAction');
+  if (cfg.action) {
+    actionBtn.style.display = 'inline-block';
+    actionBtn.textContent = cfg.action.label;
+    actionBtn.setAttribute('onclick', cfg.action.fn + '()');
+  } else {
+    actionBtn.style.display = 'none';
+  }
+
+  if (view === 'audit') loadAuditLog();
+  if (view === 'dashboard') loadRecentActivity();
+  if (view === 'stripe') { loadPlatformConfig(); loadStripeOverview(); }
+  if (view === 'connections') loadConnections();
+  if (view === 'support') loadSupportThreads({ refreshCurrent: true });
+  if (view === 'passwordResets') loadPasswordResetRequests();
+}
+
+function renderSummary(tenants, summary = null) {
+  const total = Number(summary?.total ?? tenants.length);
+  const operational = Number(summary?.operational ?? tenants.filter(t => t.status === 'active').length);
+  const active = Number(summary?.active ?? tenants.filter(t => t.billing_status === 'active').length);
+  const trialing = Number(summary?.trialing ?? tenants.filter(t => t.billing_status === 'trialing').length);
+  const unhealthy = tenants.filter(t => t.db_healthy === false).length;
+  const boxes = [
+    ['Empresas', total],
+    ['Operacionais', operational],
+    ['Pagando', active],
+    ['Em trial', trialing],
+    ['Problemas DB', unhealthy]
+  ];
+  document.getElementById('summary').innerHTML = boxes.map(([label, num]) => `
+    <div class="box"><div class="num">${num}</div><div class="label">${label}</div></div>
+  `).join('');
+  document.getElementById('navClientsCount').textContent = total;
+}
+
+let cachedTenants = [];
+let tenantDirectory = [];
+let tenantPage = 1;
+let tenantTotalPages = 1;
+let cachedAuditLog = [];
+let cachedPasswordResetRequests = [];
+
+function planLabel(plan) {
+  return plan === 'profissional' ? 'Profissional' : 'Básico';
+}
+
+function effectiveUserLimit(tenant) {
+  const serverLimit = Number(tenant.user_limit);
+  if (Number.isSafeInteger(serverLimit) && serverLimit > 0) return serverLimit;
+  const override = Number(tenant.user_limit_override);
+  if (Number.isSafeInteger(override) && override > 0) return override;
+  return tenant.plan === 'profissional' ? 10 : 5;
+}
+
+async function loadTenants() {
+  const res = await api(`/api/tenants?page=${tenantPage}&page_size=25`);
+  if (res.status === 403) { window.location.href = '/admin.html'; return; }
+  const payload = await res.json();
+  if (!res.ok) {
+    alert(payload.error || 'Não foi possível carregar os clientes.');
+    return;
+  }
+  const tenants = Array.isArray(payload) ? payload : (payload.items || []);
+  const pagination = Array.isArray(payload) ? null : payload.pagination;
+  cachedTenants = tenants;
+  tenantDirectory = Array.isArray(payload.tenant_directory) ? payload.tenant_directory : tenants;
+  tenantPage = Number(pagination?.page || 1);
+  tenantTotalPages = Number(pagination?.total_pages || 1);
+  renderSummary(tenants, payload.summary);
+  document.getElementById('tenantPageLabel').textContent = `Página ${tenantPage} de ${tenantTotalPages}`;
+  document.getElementById('tenantPrevious').disabled = !pagination?.has_previous;
+  document.getElementById('tenantNext').disabled = !pagination?.has_next;
+  const tbody = document.getElementById('tbody');
+  if (!tenants.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum tenant cadastrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tenants.map(t => `
+    <tr>
+      <td>
+        <strong>${escape(t.name)}</strong><br>
+        <span class="muted">${escape(t.slug)}</span>
+      </td>
+      <td><span class="status ${escape(t.status)}">${operationalStatusLabel(t.status)}</span></td>
+      <td>
+        <span class="status ${t.billing_status}">${statusLabel(t.billing_status)}</span>
+        ${t.comp ? '<span class="comp-badge">CORTESIA</span>' : ''}
+      </td>
+      <td>
+        <span class="status ${t.db_healthy ? 'healthy' : 'degraded'}">
+          ${t.db_healthy ? 'Banco OK' : dbHealthLabel(t.db_health)}
+        </span>
+      </td>
+      <td>${t.billing_status === 'trialing' ? formatDate(t.trial_ends_at) : '-'}</td>
+      <td>${escape(planLabel(t.plan))}</td>
+      <td>
+        ${t.db_healthy ? `${Number(t.user_count ?? t.vendor_count)} / ${effectiveUserLimit(t)}` : '—'}
+        ${!t.db_healthy || t.user_limit_override == null ? '' : '<span class="limit-override">LIMITE PERSONALIZADO</span>'}
+      </td>
+      <td>${t.db_healthy ? Number(t.conversation_count) : '—'}</td>
+      <td>${formatDate(t.created_at)}</td>
+      <td>
+        ${t.slug === 'default' || t.status === 'provisioning' ? '' : t.status === 'suspended'
+          ? `<button class="btn-sm primary" onclick="setTenantStatus(${t.id},'active')">Ativar conta</button>`
+          : `<button class="btn-sm danger" onclick="setTenantStatus(${t.id},'suspended')">Suspender conta</button>`}
+        <button class="btn-sm" onclick="toggleComp(${t.id}, ${t.comp ? 'false' : 'true'})">${t.comp ? 'Tirar cortesia' : 'Dar cortesia'}</button>
+        <button class="btn-sm" onclick="openEditModal(${t.id})">Editar</button>
+        ${t.slug === 'default' ? '' : `<button class="btn-sm danger" onclick="deleteTenant(${t.id})">Excluir</button>`}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function changeTenantPage(delta) {
+  const next = Math.min(tenantTotalPages, Math.max(1, tenantPage + Number(delta || 0)));
+  if (next === tenantPage) return;
+  tenantPage = next;
+  loadTenants();
+}
+
+let cachedConnections = [];
+let connectionQrObjectUrl = '';
+
+function connectionStateLabel(status) {
+  if (!status) return 'Não iniciada';
+  if (status.ready) return 'Conectada';
+  if (status.status === 'queued_capacity') return `Na fila (${status.queuePosition || '-'})`;
+  if (status.status === 'qr') return 'Aguardando QR';
+  if (status.requiresManualAction) return 'Requer intervenção';
+  return status.status || status.state || 'Desconectada';
+}
+
+async function loadConnections() {
+  const body = document.getElementById('connectionsBody');
+  body.innerHTML = '<tr><td colspan="5" class="empty">Carregando...</td></tr>';
+  try {
+    const res = await api('/api/admin/connections');
+    const rows = await res.json().catch(() => []);
+    if (!res.ok) throw new Error(rows.error || 'Não foi possível carregar as conexões');
+    cachedConnections = rows;
+    body.innerHTML = rows.map(row => {
+      const status = row.waStatus;
+      const reconnect = status?.nextReconnectAt
+        ? `Tentando novamente em ${escape(formatDateTime(status.nextReconnectAt))}`
+        : `${Number(status?.reconnectTotal || 0)} tentativa(s)`;
+      return `<tr>
+        <td><strong>${escape(row.name)}</strong><br><span class="muted">${escape(row.slug)}</span></td>
+        <td>${escape(connectionStateLabel(status))}${status?.error ? `<br><span class="muted">${escape(status.error)}</span>` : ''}</td>
+        <td>${status?.isolated === false ? '<span class="status suspended">Inválido</span>' : '<span class="status active">Isolada</span>'}</td>
+        <td>${reconnect}</td>
+        <td>
+          <button class="btn-sm primary" onclick="startTenantConnection(${Number(row.id)})">Iniciar</button>
+          ${status?.qr ? `<button class="btn-sm" onclick="showConnectionQr(${Number(row.id)})">Mostrar QR</button>` : ''}
+          ${status ? `<button class="btn-sm danger" onclick="logoutTenantConnection(${Number(row.id)})">Desconectar</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" class="empty">Nenhum cliente cadastrado.</td></tr>';
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="5" class="empty">${escape(error.message)}</td></tr>`;
+  }
+}
+
+async function startTenantConnection(tenantId) {
+  const res = await api('/api/admin/connections/start', { method: 'POST', body: { tenantId } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Não foi possível iniciar a conexão');
+  await loadConnections();
+}
+
+async function logoutTenantConnection(tenantId) {
+  if (!confirm('Desconectar esta sessão e remover as credenciais locais do WhatsApp?')) return;
+  const res = await api('/api/admin/connections/logout', { method: 'POST', body: { tenantId } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || 'Não foi possível desconectar');
+  await loadConnections();
+}
+
+async function showConnectionQr(tenantId) {
+  const row = cachedConnections.find(item => Number(item.id) === Number(tenantId));
+  const qr = row?.waStatus?.qr;
+  if (!qr) return alert('O QR não está disponível. Atualize as conexões.');
+  const response = await api('/api/qrcode', { method: 'POST', body: { data: qr } });
+  if (!response.ok) return alert('Não foi possível renderizar o QR');
+  if (connectionQrObjectUrl) URL.revokeObjectURL(connectionQrObjectUrl);
+  connectionQrObjectUrl = URL.createObjectURL(await response.blob());
+  document.getElementById('connectionQrTenant').textContent = row.name;
+  const image = document.createElement('img');
+  image.src = connectionQrObjectUrl;
+  image.alt = `QR Code de ${row.name}`;
+  image.style.maxWidth = '260px';
+  document.getElementById('connectionQrImage').replaceChildren(image);
+  openModal('connectionQrModal');
+}
+
+function closeConnectionQr() {
+  closeModal('connectionQrModal');
+  document.getElementById('connectionQrImage').replaceChildren();
+  if (connectionQrObjectUrl) URL.revokeObjectURL(connectionQrObjectUrl);
+  connectionQrObjectUrl = '';
+}
+
+function tenantNameById(id) {
+  const t = tenantDirectory.find(x => Number(x.id) === Number(id));
+  return t ? t.name : (id ? '#' + id : '-');
+}
+
+async function loadAuditLog() {
+  const res = await api('/api/audit-log');
+  cachedAuditLog = await res.json();
+  const tbody = document.getElementById('auditBody');
+  if (!cachedAuditLog.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Sem eventos ainda</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedAuditLog.map(e => `
+    <tr>
+      <td class="muted">${formatDateTime(e.created_at)}</td>
+      <td>${escape(e.actor)}</td>
+      <td>${escape(e.action)}</td>
+      <td>${escape(tenantNameById(e.tenant_id))}</td>
+      <td class="audit-detail">${escape(e.detail || '')}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadRecentActivity() {
+  const res = await api('/api/audit-log');
+  const entries = await res.json();
+  cachedAuditLog = entries;
+  const recent = entries.slice(0, 5);
+  const tbody = document.getElementById('recentActivityBody');
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Sem eventos ainda</td></tr>';
+    return;
+  }
+  tbody.innerHTML = recent.map(e => `
+    <tr>
+      <td class="muted">${formatDateTime(e.created_at)}</td>
+      <td>${escape(e.actor)}</td>
+      <td>${escape(e.action)}</td>
+      <td>${escape(tenantNameById(e.tenant_id))}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadPasswordResetRequests() {
+  const tbody = document.getElementById('passwordResetBody');
+  try {
+    const res = await api('/api/password-reset-requests');
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.error || 'Não foi possível carregar as solicitações');
+    cachedPasswordResetRequests = Array.isArray(payload) ? payload : (payload.requests || []);
+    document.getElementById('navPasswordResetCount').textContent = cachedPasswordResetRequests.length > 99
+      ? '99+'
+      : String(cachedPasswordResetRequests.length);
+    if (!cachedPasswordResetRequests.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhuma solicitação pendente.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = cachedPasswordResetRequests.map(request => {
+      const requestId = Number(request.id);
+      const safeRequestId = Number.isSafeInteger(requestId) && requestId > 0 ? requestId : 0;
+      return `
+        <tr>
+          <td class="muted">${escape(formatDateTime(request.requested_at))}</td>
+          <td>${escape(request.tenant_name || tenantNameById(request.tenant_id))}</td>
+          <td>${escape(request.email)}</td>
+          <td><span class="status trialing">Pendente</span></td>
+          <td><button class="btn-sm primary" onclick="openPasswordResetModal(${safeRequestId})">Definir nova senha</button></td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    cachedPasswordResetRequests = [];
+    document.getElementById('navPasswordResetCount').textContent = '0';
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">${escape(error.message || 'Não foi possível carregar as solicitações')}</td></tr>`;
+  }
+}
+
+function openPasswordResetModal(requestId) {
+  const request = cachedPasswordResetRequests.find(item => Number(item.id) === Number(requestId));
+  if (!request) return;
+  document.getElementById('passwordResetRequestId').value = String(request.id);
+  document.getElementById('passwordResetAccount').textContent = `${request.tenant_name || tenantNameById(request.tenant_id)} · ${request.email}`;
+  document.getElementById('passwordResetNewPassword').value = '';
+  document.getElementById('passwordResetConfirmPassword').value = '';
+  openModal('passwordResetModal');
+  document.getElementById('passwordResetNewPassword').focus();
+}
+
+async function submitPasswordReset() {
+  const requestId = Number(document.getElementById('passwordResetRequestId').value);
+  const newPassword = document.getElementById('passwordResetNewPassword').value;
+  const confirmation = document.getElementById('passwordResetConfirmPassword').value;
+  if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+    alert('Solicitação inválida. Atualize a lista e tente novamente.');
+    return;
+  }
+  if (newPassword.length < 10) {
+    alert('A nova senha deve ter no mínimo 10 caracteres.');
+    return;
+  }
+  if (passwordUtf8Bytes(newPassword) > 72) {
+    alert('A nova senha deve ter no máximo 72 bytes UTF-8.');
+    return;
+  }
+  if (newPassword !== confirmation) {
+    alert('A confirmação da senha não confere.');
+    return;
+  }
+
+  const button = document.getElementById('passwordResetSaveButton');
+  button.disabled = true;
+  button.textContent = 'Alterando...';
+  try {
+    const res = await api(`/api/password-reset-requests/${requestId}/resolve`, {
+      method: 'POST',
+      body: { newPassword }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Não foi possível alterar a senha');
+    closeModal('passwordResetModal');
+    alert('Senha alterada. As sessões anteriores desse administrador foram encerradas.');
+    await loadPasswordResetRequests();
+  } catch (error) {
+    alert(error.message || 'Não foi possível alterar a senha');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Alterar senha';
+  }
+}
+
+async function setBillingStatus(id, status) {
+  const label = status === 'active' ? 'ativar' : 'suspender (bloqueia login)';
+  if (!confirm(`Confirma ${label} este cliente?`)) return;
+  const res = await api(`/api/tenants/${id}/billing-status`, { method: 'POST', body: { billing_status: status } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || 'Não foi possível atualizar a cobrança. Use cortesia para uma liberação sem Stripe.');
+    return;
+  }
+  loadTenants();
+}
+
+async function setTenantStatus(id, status) {
+  const label = status === 'active'
+    ? 'reativar esta conta (todas as pessoas precisarão entrar novamente)'
+    : 'suspender esta conta e encerrar todas as sessões';
+  if (!confirm(`Confirma ${label}?`)) return;
+  const res = await api(`/api/tenants/${id}/status`, { method: 'POST', body: { status } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    alert(data.error || 'Não foi possível atualizar o status operacional da conta.');
+    return;
+  }
+  loadTenants();
+}
+
+async function toggleComp(id, comp) {
+  const label = comp ? 'dar cortesia (fica sempre ativo, sem cobrança)' : 'remover a cortesia';
+  if (!confirm(`Confirma ${label} para este cliente?`)) return;
+  await api(`/api/tenants/${id}/comp`, { method: 'POST', body: { comp } });
+  loadTenants();
+}
+
+async function deleteTenant(id) {
+  if (!confirm('Excluir este cliente PERMANENTEMENTE? Todos os dados (conversas, vendedores, etc) serão perdidos.')) return;
+  if (!confirm('Tem certeza mesmo? Essa ação não pode ser desfeita.')) return;
+  const res = await api(`/api/tenants/${id}`, { method: 'DELETE' });
+  if (!res.ok) { alert('Erro ao excluir'); return; }
+  loadTenants();
+}
+
+function openCreateModal() {
+  document.getElementById('newCompanyName').value = '';
+  document.getElementById('newAdminEmail').value = '';
+  document.getElementById('newAdminPassword').value = '';
+  document.getElementById('newPlan').value = 'basico';
+  openModal('createModal');
+}
+
+async function submitCreate() {
+  const companyName = document.getElementById('newCompanyName').value.trim();
+  const adminEmail = document.getElementById('newAdminEmail').value.trim();
+  const adminPassword = document.getElementById('newAdminPassword').value;
+  const plan = document.getElementById('newPlan').value;
+  if (!companyName || !adminEmail || !adminPassword) { alert('Preencha todos os campos'); return; }
+  if (adminPassword.length < 10) { alert('A senha inicial deve ter no mínimo 10 caracteres'); return; }
+  if (passwordUtf8Bytes(adminPassword) > 72) { alert('A senha inicial deve ter no máximo 72 bytes UTF-8'); return; }
+  const res = await api('/api/tenants', { method: 'POST', body: { companyName, adminEmail, adminPassword, plan } });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Erro ao criar cliente'); return; }
+  closeModal('createModal');
+  loadTenants();
+}
+
+function openEditModal(id) {
+  const t = cachedTenants.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('editTenantId').value = t.id;
+  document.getElementById('editName').value = t.name;
+  document.getElementById('editSlug').value = t.slug;
+  const planInput = document.getElementById('editPlan');
+  planInput.value = t.plan === 'profissional' ? 'profissional' : 'basico';
+  planInput.disabled = Boolean(t.stripe_subscription_id);
+  document.getElementById('editPlanHint').textContent = t.stripe_subscription_id
+    ? 'A assinatura está ativa. Altere o preço/plano pelo fluxo de cobrança da Stripe; o limite personalizado continua disponível.'
+    : 'Deixe o limite vazio para usar automaticamente 5 usuários no Básico ou 10 no Profissional.';
+  document.getElementById('editUserLimitOverride').value = t.user_limit_override == null ? '' : String(t.user_limit_override);
+  openModal('editModal');
+}
+
+async function submitEdit() {
+  const id = document.getElementById('editTenantId').value;
+  const name = document.getElementById('editName').value.trim();
+  const slug = document.getElementById('editSlug').value.trim();
+  const plan = document.getElementById('editPlan').value.trim();
+  const overrideInput = document.getElementById('editUserLimitOverride').value.trim();
+  const userLimitOverride = overrideInput === '' ? null : Number(overrideInput);
+  if (!name || !slug) { alert('Preencha nome e slug'); return; }
+  if (userLimitOverride !== null && (!Number.isSafeInteger(userLimitOverride) || userLimitOverride <= 0)) {
+    alert('O limite personalizado deve ser um número inteiro positivo');
+    return;
+  }
+  const res = await api(`/api/tenants/${id}`, { method: 'PUT', body: { name, slug, plan, user_limit_override: userLimitOverride } });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'Erro ao salvar'); return; }
+  closeModal('editModal');
+  loadTenants();
+}
+
+function formatMoney(cents, currency) {
+  const value = (cents || 0) / 100;
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: (currency || 'brl').toUpperCase() });
+}
+
+function subStatusLabel(status) {
+  const labels = {
+    active: 'Ativa', trialing: 'Trial', past_due: 'Pagamento atrasado',
+    unpaid: 'Não pago', canceled: 'Cancelada', incomplete: 'Incompleta', incomplete_expired: 'Expirada'
+  };
+  return labels[status] || status;
+}
+
+async function loadStripeOverview() {
+  document.getElementById('webhookUrlHint').textContent = window.location.origin + '/api/webhooks/stripe';
+  const res = await api('/api/billing/overview');
+  const data = await res.json();
+
+  document.getElementById('stripeNotConfigured').style.display = data.configured ? 'none' : 'block';
+  document.getElementById('stripeConfigured').style.display = data.configured ? 'block' : 'none';
+  if (!data.configured) return;
+
+  const boxes = [
+    ['MRR (receita recorrente)', formatMoney(data.mrrCents, 'brl')],
+    ['Assinaturas ativas', data.activeCount],
+    ['Em trial', data.trialingCount],
+    ['Pagamento atrasado', data.pastDueCount]
+  ];
+  document.getElementById('stripeSummary').innerHTML = boxes.map(([label, num]) => `
+    <div class="box"><div class="num">${num}</div><div class="label">${label}</div></div>
+  `).join('');
+
+  const tbody = document.getElementById('stripeSubsBody');
+  if (!data.subscriptions.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Nenhuma assinatura ainda</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.subscriptions.map(s => `
+    <tr>
+      <td>${escape(s.tenantName)}</td>
+      <td class="status-cell"><span class="status ${s.status}">${subStatusLabel(s.status)}</span>${s.cancelAtPeriodEnd ? ' <span class="muted">(cancela no fim do período)</span>' : ''}</td>
+      <td>${formatMoney(s.amountCents, s.currency)}</td>
+      <td>${formatDate(s.currentPeriodEnd)}</td>
+    </tr>
+  `).join('');
+}
+
+const PLATFORM_SECRET_FIELDS = {
+  cfgStripeSecret: 'STRIPE_SECRET_KEY',
+  cfgStripeWebhook: 'STRIPE_WEBHOOK_SECRET',
+  cfgTurnstileSecret: 'TURNSTILE_SECRET_KEY'
+};
+const PLATFORM_PUBLIC_FIELDS = {
+  cfgStripePriceBasic: 'STRIPE_PRICE_ID_BASIC',
+  cfgStripePricePro: 'STRIPE_PRICE_ID_PRO',
+  cfgTurnstileSite: 'TURNSTILE_SITE_KEY'
+};
+
+async function loadPlatformConfig() {
+  const status = document.getElementById('cfgStatus');
+  try {
+    const res = await api('/api/admin/platform-config');
+    if (!res.ok) throw new Error('load');
+    const data = await res.json();
+    const cfg = data.config || {};
+    // Segredos: campo sempre vazio; o placeholder mostra a máscara quando salvo.
+    for (const [fieldId, key] of Object.entries(PLATFORM_SECRET_FIELDS)) {
+      const el = document.getElementById(fieldId);
+      if (!el) continue;
+      if (!el.dataset.ph) el.dataset.ph = el.placeholder;
+      el.value = '';
+      const entry = cfg[key] || {};
+      el.placeholder = entry.configured ? `${entry.masked} (salvo — deixe em branco p/ manter)` : el.dataset.ph;
+    }
+    // Públicos: pré-preenche com o valor atual (editável e limpável).
+    for (const [fieldId, key] of Object.entries(PLATFORM_PUBLIC_FIELDS)) {
+      const el = document.getElementById(fieldId);
+      if (el) el.value = (cfg[key] && cfg[key].value) || '';
+    }
+    if (status) { status.style.color = ''; status.textContent = ''; }
+  } catch {
+    if (status) { status.style.color = '#c0392b'; status.textContent = 'Não foi possível carregar a configuração atual.'; }
+  }
+}
+
+async function savePlatformConfig() {
+  const status = document.getElementById('cfgStatus');
+  const body = {};
+  // Segredos só vão quando o operador digita algo novo (vazio = manter atual).
+  for (const [fieldId, key] of Object.entries(PLATFORM_SECRET_FIELDS)) {
+    const el = document.getElementById(fieldId);
+    if (el && el.value.trim()) body[key] = el.value.trim();
+  }
+  // Públicos vão sempre (permite editar e também limpar apagando o campo).
+  for (const [fieldId, key] of Object.entries(PLATFORM_PUBLIC_FIELDS)) {
+    const el = document.getElementById(fieldId);
+    if (el) body[key] = el.value.trim();
+  }
+  if (!Object.keys(body).length) {
+    if (status) { status.style.color = ''; status.textContent = 'Nada para salvar.'; }
+    return;
+  }
+  if (status) { status.style.color = ''; status.textContent = 'Salvando…'; }
+  try {
+    const res = await api('/api/admin/platform-config', { method: 'PUT', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
+    if (status) {
+      status.style.color = '#1e8e3e';
+      status.textContent = data.billingConfigured ? 'Salvo! Conta e preços Stripe validados.' : 'Salvo!';
+    }
+    await loadPlatformConfig();
+    await loadStripeOverview();
+  } catch (err) {
+    if (status) { status.style.color = '#c0392b'; status.textContent = err.message || 'Falha ao salvar'; }
+  }
+}
+
+async function clearTurnstileConfig() {
+  if (!window.confirm('Desativar a proteção anti-robô dos novos cadastros?')) return;
+  const status = document.getElementById('cfgStatus');
+  if (status) { status.style.color = ''; status.textContent = 'Desativando Turnstile…'; }
+  try {
+    const res = await api('/api/admin/platform-config', {
+      method: 'PUT',
+      body: { TURNSTILE_SITE_KEY: '', TURNSTILE_SECRET_KEY: '' }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao desativar Turnstile');
+    if (status) { status.style.color = '#1e8e3e'; status.textContent = 'Turnstile desativado.'; }
+    await loadPlatformConfig();
+  } catch (err) {
+    if (status) { status.style.color = '#c0392b'; status.textContent = err.message || 'Falha ao desativar Turnstile'; }
+  }
+}
+
+function supportPreview(thread) {
+  if (thread.last_message_content) return thread.last_message_content;
+  const labels = { image: '📷 Imagem', video: '🎥 Vídeo', audio: '🎧 Áudio', document: '📎 Documento' };
+  return labels[thread.last_message_media_type] || thread.last_message_media_filename || 'Nova conversa';
+}
+
+function renderSupportThreads() {
+  const list = document.getElementById('supportThreadList');
+  const unread = cachedSupportThreads.reduce((total, thread) => total + Number(thread.super_unread_count || 0), 0);
+  document.getElementById('navSupportCount').textContent = unread > 99 ? '99+' : String(unread);
+  if (!cachedSupportThreads.length) {
+    list.innerHTML = '<div class="empty">Nenhuma mensagem de suporte ainda.</div>';
+    return;
+  }
+  list.innerHTML = cachedSupportThreads.map(thread => `
+    <button class="support-thread ${Number(thread.id) === Number(currentSupportThreadId) ? 'active' : ''}" type="button" onclick="openSupportThread(${thread.id})">
+      <span class="support-thread-title"><span>${escape(thread.tenant_name)}</span>${Number(thread.super_unread_count || 0) ? `<span class="support-unread">${Math.min(Number(thread.super_unread_count), 99)}</span>` : ''}</span>
+      <span class="support-thread-preview">${escape(supportPreview(thread))}</span>
+      <span class="support-thread-meta">${escape(formatDateTime(thread.last_message_at || thread.updated_at))}</span>
+    </button>
+  `).join('');
+}
+
+async function loadSupportThreads({ refreshCurrent = false } = {}) {
+  const requestSequence = ++supportInboxSequence;
+  const res = await api('/api/support/threads');
+  if (!res.ok) return;
+  const threads = await res.json();
+  if (requestSequence !== supportInboxSequence) return;
+  cachedSupportThreads = threads;
+  renderSupportThreads();
+  if (refreshCurrent && currentSupportThreadId && cachedSupportThreads.some(thread => Number(thread.id) === Number(currentSupportThreadId))) {
+    await openSupportThread(currentSupportThreadId, { reloadInbox: false });
+  }
+}
+
+function supportMediaHtml(message) {
+  if (!message.media_url) return '';
+  const url = message.media_url;
+  const name = escape(message.media_filename || 'Anexo');
+  if (message.media_type === 'image') {
+    return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${name}"></a>`;
+  }
+  if (message.media_type === 'audio' && window.ChatAudioPlayer) {
+    return window.ChatAudioPlayer.render(url, {
+      key: `support:${message.id || url}`,
+      label: message.media_filename || 'Áudio do suporte'
+    });
+  }
+  return `<a href="${url}" target="_blank" rel="noopener">📎 ${name}</a>`;
+}
+
+function renderSupportMessages(messages, { threadId = currentSupportThreadId, scrollToBottom = true } = {}) {
+  const container = document.getElementById('supportMessages');
+  if (!messages.length) {
+    container.innerHTML = '<div class="support-empty">A conversa está vazia.</div>';
+    return;
+  }
+  const olderButton = supportHasMore
+    ? `<button class="btn-sm" style="align-self:center" onclick="loadOlderSupportMessages()" ${supportLoadingOlder ? 'disabled' : ''}>${supportLoadingOlder ? 'Carregando...' : 'Carregar mensagens anteriores'}</button>`
+    : '';
+  container.innerHTML = olderButton + messages.map(message => `
+    <div class="support-bubble ${message.sender_type === 'super_admin' ? 'super_admin' : ''}">
+      ${supportMediaHtml(message)}
+      ${message.content ? `<div>${escape(message.content)}</div>` : ''}
+      <div class="support-bubble-time">${escape(formatDateTime(message.created_at))}</div>
+    </div>
+  `).join('');
+  if (scrollToBottom) {
+    requestAnimationFrame(() => {
+      if (Number(currentSupportThreadId) === Number(threadId)) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  }
+}
+
+async function openSupportThread(threadId, { reloadInbox = true } = {}) {
+  const targetThreadId = Number(threadId);
+  if (!Number.isSafeInteger(targetThreadId) || targetThreadId <= 0) return;
+  const requestSequence = ++supportOpenSequence;
+  supportOlderSequence += 1;
+  supportLoadingOlder = false;
+  currentSupportThreadId = targetThreadId;
+  renderSupportThreads();
+  const res = await api(`/api/support/threads/${targetThreadId}/messages`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || requestSequence !== supportOpenSequence || currentSupportThreadId !== targetThreadId) return;
+  currentSupportMessages = data.messages || [];
+  supportHasMore = Boolean(data.has_more);
+  supportNextBeforeId = data.next_before_id || null;
+  document.getElementById('supportChatHead').innerHTML = `<strong>${escape(data.thread.tenant_name)}</strong><span>${escape(data.thread.tenant_slug || '')}</span>`;
+  document.getElementById('supportComposer').style.display = 'flex';
+  renderSupportMessages(currentSupportMessages, { threadId: targetThreadId });
+  await api(`/api/support/threads/${targetThreadId}/read`, { method: 'PATCH' });
+  if (requestSequence !== supportOpenSequence || currentSupportThreadId !== targetThreadId) return;
+  const cached = cachedSupportThreads.find(thread => Number(thread.id) === targetThreadId);
+  if (cached) cached.super_unread_count = 0;
+  renderSupportThreads();
+  if (reloadInbox) loadSupportThreads();
+}
+
+async function loadOlderSupportMessages() {
+  if (!currentSupportThreadId || !supportHasMore || !supportNextBeforeId || supportLoadingOlder) return;
+  const targetThreadId = Number(currentSupportThreadId);
+  const openSequence = supportOpenSequence;
+  const requestSequence = ++supportOlderSequence;
+  const beforeId = supportNextBeforeId;
+  const container = document.getElementById('supportMessages');
+  const previousHeight = container.scrollHeight;
+  supportLoadingOlder = true;
+  renderSupportMessages(currentSupportMessages, { threadId: targetThreadId, scrollToBottom: false });
+  try {
+    const res = await api(`/api/support/threads/${targetThreadId}/messages?before_id=${encodeURIComponent(beforeId)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Não foi possível carregar mensagens anteriores');
+    if (requestSequence !== supportOlderSequence
+        || openSequence !== supportOpenSequence
+        || currentSupportThreadId !== targetThreadId) return;
+    const known = new Set(currentSupportMessages.map(message => Number(message.id)));
+    currentSupportMessages = [
+      ...(data.messages || []).filter(message => !known.has(Number(message.id))),
+      ...currentSupportMessages
+    ];
+    supportHasMore = Boolean(data.has_more);
+    supportNextBeforeId = data.next_before_id || null;
+  } catch (error) {
+    if (requestSequence !== supportOlderSequence
+        || openSequence !== supportOpenSequence
+        || currentSupportThreadId !== targetThreadId) return;
+    alert(error.message || 'Não foi possível carregar mensagens anteriores');
+  } finally {
+    if (requestSequence !== supportOlderSequence
+        || openSequence !== supportOpenSequence
+        || currentSupportThreadId !== targetThreadId) return;
+    supportLoadingOlder = false;
+    renderSupportMessages(currentSupportMessages, { threadId: targetThreadId, scrollToBottom: false });
+    requestAnimationFrame(() => {
+      if (requestSequence === supportOlderSequence && currentSupportThreadId === targetThreadId) {
+        container.scrollTop = Math.max(0, container.scrollHeight - previousHeight);
+      }
+    });
+  }
+}
+
+function fileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('Não foi possível ler o arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateSupportFileName() {
+  const file = document.getElementById('supportFileInput').files?.[0];
+  const button = document.querySelector('.support-attach');
+  if (button) button.title = file ? `Anexo: ${file.name}` : 'Anexar arquivo';
+}
+
+function handleSupportReplyKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendSupportReply();
+  }
+}
+
+async function sendSupportReply() {
+  if (!currentSupportThreadId || supportSending) return;
+  const targetThreadId = Number(currentSupportThreadId);
+  const openSequence = supportOpenSequence;
+  const input = document.getElementById('supportReplyInput');
+  const fileInput = document.getElementById('supportFileInput');
+  const file = fileInput.files?.[0] || null;
+  const inputValueAtStart = input.value;
+  const content = inputValueAtStart.trim();
+  if (!content && !file) return;
+  supportSending = true;
+  const button = document.getElementById('supportSendBtn');
+  button.disabled = true;
+  button.textContent = 'Enviando...';
+  try {
+    const body = { content };
+    if (file) {
+      body.media = {
+        filename: file.name,
+        mimetype: file.type || 'application/octet-stream',
+        size: file.size,
+        data: await fileAsBase64(file)
+      };
+    }
+    const res = await api(`/api/support/threads/${targetThreadId}/messages`, { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Não foi possível enviar a resposta');
+    if (currentSupportThreadId === targetThreadId && supportOpenSequence === openSequence) {
+      if (input.value === inputValueAtStart) input.value = '';
+      if ((fileInput.files?.[0] || null) === file) fileInput.value = '';
+      updateSupportFileName();
+      await openSupportThread(targetThreadId);
+    } else {
+      loadSupportThreads();
+    }
+  } catch (error) {
+    alert(error.message || 'Não foi possível enviar a resposta');
+  } finally {
+    supportSending = false;
+    button.disabled = false;
+    button.textContent = 'Enviar';
+  }
+}
+
+socket.on('support:new', event => {
+  loadSupportThreads();
+  if (Number(event.threadId) === Number(currentSupportThreadId)) {
+    openSupportThread(currentSupportThreadId, { reloadInbox: false });
+  }
+});
+
+socket.on('password-reset:new', () => {
+  loadPasswordResetRequests();
+});
+
+let logoutInFlight = false;
+async function logout() {
+  if (logoutInFlight) return;
+  logoutInFlight = true;
+  const link = document.querySelector('a[onclick="logout()"]');
+  if (link) {
+    link.innerHTML = '<span class="btn-spinner"></span>Saindo…';
+    link.style.pointerEvents = 'none';
+  }
+  document.body.style.cursor = 'wait';
+  try {
+    await api('/api/logout', { method: 'POST' });
+  } catch {}
+  window.location.href = '/login.html';
+}
+
+fetch('/api/branding').then(r => r.json()).then(b => {
+  if (b.appName) {
+    document.title = 'Super Admin - ' + b.appName;
+    document.getElementById('brandLabel').textContent = b.appName + ' · Super Admin';
+  }
+}).catch(() => {});
+
+loadTenants();
+loadRecentActivity();
+loadSupportThreads();
+loadPasswordResetRequests();
+</script>
+</body>
+</html>

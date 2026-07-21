@@ -3,10 +3,19 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,5 +23,46 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
+      - name: Validate production configuration contract
+        env:
+          DOMAIN: app.ci.invalid
+          APP_URL: https://app.ci.invalid
+          CORS_ORIGIN: https://app.ci.invalid
+          JWT_SECRET: 0123456789abcdef0123456789abcdef
+          ADMIN_USERNAME: owner@ci.invalid
+          ADMIN_PASSWORD: CI-Strong-Admin-Password-42
+          APP_MODE: internal
+          INTERNAL_SINGLE_TENANT: 'true'
+          BILLING_REQUIRED: 'false'
+          WA_MAX_CONCURRENT_SESSIONS: 1
+          APP_UID: 1000
+          APP_GID: 1000
+        run: npm run production:validate
+      - name: Validate Compose model
+        env:
+          DOMAIN: app.ci.invalid
+          APP_URL: https://app.ci.invalid
+          CORS_ORIGIN: https://app.ci.invalid
+          JWT_SECRET: 0123456789abcdef0123456789abcdef
+          ADMIN_USERNAME: owner@ci.invalid
+          ADMIN_PASSWORD: CI-Strong-Admin-Password-42
+          APP_MODE: internal
+          INTERNAL_SINGLE_TENANT: 'true'
+          BILLING_REQUIRED: 'false'
+          WA_MAX_CONCURRENT_SESSIONS: 1
+          APP_UID: 1000
+          APP_GID: 1000
+        run: docker compose config --quiet
+      - run: docker build --check .
+      - run: docker build --tag whatscarretao:ci .
+      - name: Smoke Chromium sandbox under production restrictions
+        run: >-
+          docker run --rm --network none --read-only --tmpfs /tmp:size=256m
+          --shm-size 256m --user 1000:1000 --cap-drop ALL
+          --security-opt no-new-privileges:true -e HOME=/tmp
+          -e XDG_CONFIG_HOME=/tmp/chrome-config -e XDG_CACHE_HOME=/tmp/chrome-cache
+          --entrypoint /usr/bin/chromium whatscarretao:ci
+          --headless --disable-gpu --no-first-run --dump-dom about:blank

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
+<script src="/theme.js" defer></script>
+<script src="/session-privacy.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configuracoes - WhatsApp AI</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f0f2f5; color:#1a1a2e; }
+header { background:linear-gradient(135deg,#075e54,#128C7E); color:white; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; }
+header h1 { font-size:18px; }
+header a { color:rgba(255,255,255,.8); text-decoration:none; font-size:13px; }
+header a:hover { color:#fff; }
+.container { max-width:640px; margin:0 auto; padding:24px; }
+.card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.04); padding:32px; }
+.card h2 { font-size:18px; margin-bottom:4px; }
+.card .sub { font-size:13px; color:#667781; margin-bottom:24px; }
+.card label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; color:#1a1a2e; }
+.card input { width:100%; padding:12px; margin-bottom:16px; border:1px solid #ddd; border-radius:8px; font-size:15px; outline:none; }
+.card input:focus { border-color:#25d366; }
+.card button { padding:12px 32px; background:#25d366; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+.card button:hover { background:#128C7E; }
+.msg { font-size:13px; margin-bottom:12px; display:none; padding:10px 14px; border-radius:8px; }
+.msg.ok { display:block; background:#e8f5e9; color:#2e7d32; }
+.msg.erro { display:block; background:#fbe9e7; color:#c62828; }
+
+/* ===== Tema escuro ===== */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="dark"] body { background:#0b141a; color:#e9edef; }
+[data-theme="dark"] .card { background:#111b21; box-shadow:0 2px 12px rgba(0,0,0,0.4); }
+[data-theme="dark"] .card .sub { color:#8696a0; }
+[data-theme="dark"] .card label { color:#aebac1; }
+[data-theme="dark"] .card input { background:#202c33; border-color:rgba(255,255,255,0.14); color:#e9edef; }
+[data-theme="dark"] .card input:focus { border-color:#25d366; }
+[data-theme="dark"] .msg.ok { background:rgba(37,211,102,0.14); color:#7fe0a3; }
+[data-theme="dark"] .msg.erro { background:rgba(241,92,109,0.14); color:#f6a6ad; }
+</style>
+<link rel="stylesheet" href="/chat-audio-player.css">
+</head>
+<body>
+<header>
+  <h1>Configuracoes</h1>
+  <a href="/admin.html">Voltar</a>
+</header>
+<div class="container">
+  <div class="card">
+    <h2>Minha Empresa</h2>
+    <p class="sub">Personalize a aparencia do seu ambiente</p>
+    <div id="msg" class="msg"></div>
+    <form onsubmit="save(event)">
+      <label for="name">Nome da empresa</label>
+      <input type="text" id="name" required>
+
+      <label for="appName">Nome do sistema (exibido nas paginas)</label>
+      <input type="text" id="appName">
+
+      <label for="appCompany">Rodape / empresa</label>
+      <input type="text" id="appCompany" placeholder="Ex: © 2026 Minha Empresa Ltda">
+
+      <button type="submit">Salvar</button>
+    </form>
+  </div>
+</div>
+<script src="/tooltips.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/chat-audio-player.js"></script>
+<script src="/csrf-client.js"></script>
+<script src="/support-widget.js"></script>
+<script>
+const supportSocket = io();
+window.SupportWidget?.attachSocket(supportSocket);
+
+fetch('/api/me', { credentials: 'same-origin' }).then(res => {
+  if (!res.ok) window.location.href = '/login.html';
+}).catch(() => { window.location.href = '/login.html'; });
+
+function isMutatingMethod(method) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase());
+}
+
+async function ensureCsrfToken(options = {}) {
+  return window.CsrfClient.ensureToken(options);
+}
+
+async function api(url, opts = {}) {
+  const headers = { ...opts.headers };
+  if (opts.body && typeof opts.body === 'object') headers['Content-Type'] = 'application/json';
+  return window.CsrfClient.fetch(url, { ...opts, headers, credentials: 'same-origin' });
+}
+
+async function load() {
+  try {
+    const res = await api('/api/tenant/settings');
+    const data = await res.json();
+    document.getElementById('name').value = data.name || '';
+    document.getElementById('appName').value = data.appName || '';
+    document.getElementById('appCompany').value = data.appCompany || '';
+  } catch {}
+}
+
+async function save(e) {
+  e.preventDefault();
+  const msg = document.getElementById('msg');
+  msg.className = 'msg';
+  try {
+    const res = await api('/api/tenant/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: document.getElementById('name').value,
+        appName: document.getElementById('appName').value,
+        appCompany: document.getElementById('appCompany').value
+      })
+    });
+    if (!res.ok) { msg.textContent = 'Erro ao salvar'; msg.className = 'msg erro'; return; }
+    msg.textContent = 'Salvo com sucesso!';
+    msg.className = 'msg ok';
+  } catch { msg.textContent = 'Erro de conexao'; msg.className = 'msg erro'; }
+}
+
+fetch('/api/branding').then(r=>r.json()).then(b=>{if(b.appName)document.title='Configuracoes - '+b.appName;}).catch(()=>{});
+load();
+</script>
+</body>
+</html>

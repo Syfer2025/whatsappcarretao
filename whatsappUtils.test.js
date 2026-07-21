@@ -7,9 +7,17 @@ const {
   getDisplayName,
   getSendChatId,
   toSqlDate,
+  toSqlDateOrNull,
   getMessageExternalId,
-  getMessageContent
+  getMessageContent,
+  shouldProcessMessageEvent,
+  getWhatsAppMediaType,
+  hasPotentialMedia
 } = require('./whatsappUtils');
+
+test('reads serialized WhatsApp ids returned directly by getNumberId', () => {
+  assert.equal(getChatId({ _serialized: '5511999999999@c.us' }), '5511999999999@c.us');
+});
 
 test('accepts WhatsApp user, lid, and group chat ids for import', () => {
   assert.equal(isImportableChatId('5511999999999@c.us'), true);
@@ -55,11 +63,28 @@ test('keeps group chat title before contact pushname', () => {
 
 test('converts whatsapp unix seconds to sqlite datetime text', () => {
   assert.equal(toSqlDate(1700000000), '2023-11-14 22:13:20');
+  assert.equal(toSqlDateOrNull(0), null);
+  assert.equal(toSqlDateOrNull(undefined), null);
 });
 
 test('extracts stable message id and media fallback content', () => {
   assert.equal(getMessageExternalId({ id: { _serialized: 'msg-1' } }), 'msg-1');
   assert.equal(getMessageContent({ body: '  Oi  ' }), 'Oi');
   assert.equal(getMessageContent({ body: '', hasMedia: true }), '(mídia)');
+  assert.equal(getMessageContent({ body: '', hasMedia: false, type: 'image' }), '(mídia)');
   assert.equal(getMessageContent({ body: '' }), '');
+});
+
+test('recognizes whatsapp media types even before directPath becomes available', () => {
+  assert.equal(getWhatsAppMediaType('ptt'), 'audio');
+  assert.equal(getWhatsAppMediaType('sticker'), 'sticker');
+  assert.equal(getWhatsAppMediaType('chat'), null);
+  assert.equal(hasPotentialMedia({ hasMedia: false, type: 'image' }), true);
+});
+
+test('processes each whatsapp direction from exactly one event source', () => {
+  assert.equal(shouldProcessMessageEvent({ fromMe: false }, 'message'), true);
+  assert.equal(shouldProcessMessageEvent({ fromMe: false }, 'message_create'), false);
+  assert.equal(shouldProcessMessageEvent({ fromMe: true }, 'message'), false);
+  assert.equal(shouldProcessMessageEvent({ fromMe: true }, 'message_create'), true);
 });
