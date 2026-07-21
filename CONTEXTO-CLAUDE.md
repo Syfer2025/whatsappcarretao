@@ -62,11 +62,16 @@ Corrigidas logos mal aplicadas. Assets em `frontend/assets/`:
 4. Para ficar 24/7: rodar como **Serviço do Windows** via **NSSM** (ou **PM2** com `pm2 startup`/`pm2 save`) + máquina configurada p/ **não dormir**.
 5. **Só se `npm install` falhar** no `better-sqlite3` (módulo nativo): Visual Studio Build Tools (C++) + Python 3.
 
-**Ao copiar o projeto pro Windows:**
-- **NÃO copiar `node_modules`** (binários nativos do Mac — better-sqlite3/Chromium). Rodar **`npm ci`** no Windows.
-- **NÃO copiar `.wwebjs_auth`** → reescaneia o QR no Windows (é o que se quer).
-- `data/`: se quiser manter histórico, copiar — mas está com mensagens corrompidas (ver seção 4).
-- `.env`: ajustar caminhos pro Windows (Chrome, FFmpeg) e manter `APP_MODE=internal`, `PORT=3100`.
+**Repositório Git:** https://github.com/Syfer2025/whatsappcarretao (branch `main`).
+No Windows, trazer via **`git clone https://github.com/Syfer2025/whatsappcarretao.git`**.
+O `.gitignore` já deixa de fora `.env`, `data/`, `.wwebjs_auth/`, `media/`, `node_modules/` —
+então o clone traz só o código (sem segredos, sessão ou banco), que é o correto.
+
+**Depois do clone no Windows:**
+- Rodar **`npm ci`** (instala os binários nativos certos — não dá pra reaproveitar os do Mac).
+- Criar o `.env` do zero (não vai no git): ajustar `CHROME_EXECUTABLE_PATH`, `FFMPEG_PATH`, manter `APP_MODE=internal`, `PORT=3100`, e recriar os segredos (JWT, etc.).
+- `.wwebjs_auth` não vem → reescaneia o QR no Windows (é o que se quer).
+- `data/` (histórico) não vem pelo git; se quiser manter, copiar à parte — mas está com mensagens corrompidas (ver seção 4).
 
 **Acesso de vendedores em outros estados (precisa internet):**
 - IP interno só funciona na LAN. Para acesso remoto → **Cloudflare Tunnel** + subdomínio do domínio que já possuem (`autopecascarretao.com.br`), ex.: `atendimento.autopecascarretao.com.br`. HTTPS automático, sem abrir porta no roteador, sem IP fixo. É o padrão que o cloudbird usa.
@@ -83,6 +88,6 @@ Corrigidas logos mal aplicadas. Assets em `frontend/assets/`:
 ## 7. Como me dar contexto + acesso no Windows
 
 1. Instalar o **Claude Code** no PC Windows (CLI via instalador oficial / `npm i -g @anthropic-ai/claude-code`, ou extensão do **VS Code**, ou app desktop) e logar com a mesma conta Anthropic.
-2. Copiar a **pasta do projeto** pro Windows (ver seção 5 sobre o que não copiar).
+2. Clonar o projeto: **`git clone https://github.com/Syfer2025/whatsappcarretao.git`** (ver seção 5 sobre `npm ci` e `.env`).
 3. Abrir o Claude Code **dentro da pasta do projeto** → eu passo a ler/editar os arquivos daquela pasta automaticamente.
 4. Dizer: **"leia o CONTEXTO-CLAUDE.md"** → eu retomo exatamente deste ponto.
