@@ -1,33 +1,25 @@
-name: whatscarretao
-
 services:
-  whatscarretao:
+  whatsa-ai:
     build: .
-    image: ${APP_IMAGE:-whatscarretao:local}
-    container_name: whatscarretao
+    image: ${APP_IMAGE:-whatsa-ai:local}
+    container_name: whatsa-ai
     restart: unless-stopped
     init: true
     user: '${APP_UID:-1000}:${APP_GID:-1000}'
     stop_grace_period: ${DEPLOY_STOP_TIMEOUT:-120}s
     ports:
-      - '${HOST_BIND:-127.0.0.1}:3100:3100'
+      - '${HOST_BIND:-127.0.0.1}:3000:3000'
     environment:
       NODE_ENV: production
-      PORT: 3100
-      APP_MODE: internal
-      INTERNAL_SINGLE_TENANT: 'true'
-      INTERNAL_ADMIN_NAME: ${INTERNAL_ADMIN_NAME:-Super Admin}
-      INTERNAL_AGENT_LIMIT: ${INTERNAL_AGENT_LIMIT:-100}
+      PORT: 3000
       DOMAIN: ${DOMAIN:?defina DOMAIN antes de subir em producao}
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET antes de subir em producao}
       CORS_ORIGIN: ${CORS_ORIGIN:?defina CORS_ORIGIN antes de subir em producao}
       APP_URL: ${APP_URL:?defina APP_URL antes de subir em producao}
-      APP_NAME: ${APP_NAME:-WhatsCarretao}
-      APP_COMPANY: ${APP_COMPANY:-Auto Peças Carretão}
-      TENANT_NAME: ${TENANT_NAME:-Auto Peças Carretão}
-      TENANT_SUBDOMAIN: ${TENANT_SUBDOMAIN:-carretao}
+      APP_NAME: ${APP_NAME:-WhatsApp AI}
+      APP_COMPANY: ${APP_COMPANY:-}
       COOKIE_SECURE: 'true'
-      BILLING_REQUIRED: 'false'
+      BILLING_REQUIRED: 'true'
       LOG_LEVEL: ${LOG_LEVEL:-info}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       ADMIN_USERNAME: ${ADMIN_USERNAME:?defina ADMIN_USERNAME antes de subir em producao}
@@ -47,19 +39,39 @@ services:
       FORWARD_MEDIA_TENANT_CONCURRENCY: ${FORWARD_MEDIA_TENANT_CONCURRENCY:-2}
       FORWARD_MEDIA_GLOBAL_CONCURRENCY: ${FORWARD_MEDIA_GLOBAL_CONCURRENCY:-4}
       OUTBOUND_SEND_TIMEOUT_MS: ${OUTBOUND_SEND_TIMEOUT_MS:-30000}
+      TRIAL_DAYS: '3'
+      # Chaves do Stripe são configuradas em runtime pelo super admin (aba Stripe)
+      # e guardadas criptografadas no master.db; por isso não são mais exigidas no
+      # boot. O ambiente ainda funciona como fallback caso já esteja preenchido.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # A aplicação e o deploy validam: fallback único OU os dois preços por plano.
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_PRICE_ID_BASIC: ${STRIPE_PRICE_ID_BASIC:-}
+      STRIPE_PRICE_ID_PRO: ${STRIPE_PRICE_ID_PRO:-}
+      STRIPE_NETWORK_RETRIES: ${STRIPE_NETWORK_RETRIES:-2}
+      STRIPE_TIMEOUT_MS: ${STRIPE_TIMEOUT_MS:-20000}
+      STRIPE_CHECKOUT_RESERVATION_MINUTES: ${STRIPE_CHECKOUT_RESERVATION_MINUTES:-30}
+      # Turnstile também é configurável pelo super admin em runtime; opcional no boot.
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      SUPERADMIN_NOTIFY_EMAIL: ${SUPERADMIN_NOTIFY_EMAIL:-}
+      # Opcional desde 15/jul/2026: presente = 2FA do super admin ligado;
+      # vazio = login do super admin só com e-mail e senha.
+      SUPERADMIN_TOTP_SECRET: ${SUPERADMIN_TOTP_SECRET:-}
       CLAMSCAN_PATH: ${CLAMSCAN_PATH:-}
       CLAMSCAN_TIMEOUT_MS: ${CLAMSCAN_TIMEOUT_MS:-15000}
       WA_BROWSER_MODE: isolated
       WA_NO_SANDBOX: ${WA_NO_SANDBOX:-false}
       WHATSAPP_HEADLESS: ${WHATSAPP_HEADLESS:-true}
       FFMPEG_PATH: /usr/bin/ffmpeg
-      WA_MAX_CONCURRENT_SESSIONS: '1'
+      WA_MAX_CONCURRENT_SESSIONS: ${WA_MAX_CONCURRENT_SESSIONS:-5}
       WA_START_DEFAULT_SESSION: ${WA_START_DEFAULT_SESSION:-false}
       WA_DISK_CACHE_BYTES: ${WA_DISK_CACHE_BYTES:-67108864}
       WA_MEDIA_CACHE_BYTES: ${WA_MEDIA_CACHE_BYTES:-33554432}
@@ -138,9 +150,9 @@ services:
     tmpfs:
       - /tmp:size=1g,mode=1777
     shm_size: '1gb'
-    pids_limit: ${PIDS_LIMIT:-768}
-    mem_limit: ${MEMORY_LIMIT:-4g}
-    cpus: '${CPU_LIMIT:-2.0}'
+    pids_limit: ${PIDS_LIMIT:-1024}
+    mem_limit: ${MEMORY_LIMIT:-6g}
+    cpus: '${CPU_LIMIT:-3.0}'
     ulimits:
       nofile:
         soft: 65536
@@ -156,15 +168,14 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://127.0.0.1:3100/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:3000/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
       interval: 30s
       timeout: 5s
       start_period: 90s
       retries: 5
     volumes:
-      # Bind mounts ficam dentro deste fork e não compartilham estado com o produto original.
-      # data/ contém os bancos SQLite e seus arquivos -wal/-shm.
+      # data/ contém master.db, data.db e os bancos por tenant (com seus -wal/-shm).
       # Montar a PASTA inteira garante que o WAL persista — montar arquivos .db
       # avulsos perdia o -wal a cada restart e apagava clientes cadastrados.
       - ./data:/app/data

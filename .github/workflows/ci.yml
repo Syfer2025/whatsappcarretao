@@ -34,10 +34,13 @@ jobs:
           JWT_SECRET: 0123456789abcdef0123456789abcdef
           ADMIN_USERNAME: owner@ci.invalid
           ADMIN_PASSWORD: CI-Strong-Admin-Password-42
-          APP_MODE: internal
-          INTERNAL_SINGLE_TENANT: 'true'
-          BILLING_REQUIRED: 'false'
-          WA_MAX_CONCURRENT_SESSIONS: 1
+          SUPERADMIN_TOTP_SECRET: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+          STRIPE_SECRET_KEY: sk_live_ci1234567890
+          STRIPE_WEBHOOK_SECRET: whsec_ci1234567890
+          STRIPE_PRICE_ID_BASIC: price_cibasic
+          STRIPE_PRICE_ID_PRO: price_cipro
+          TURNSTILE_SITE_KEY: 0x4AAAAAAACIValidSiteKey123
+          TURNSTILE_SECRET_KEY: 0x4AAAAAAACIValidSecretKey456
           APP_UID: 1000
           APP_GID: 1000
         run: npm run production:validate
@@ -49,20 +52,23 @@ jobs:
           JWT_SECRET: 0123456789abcdef0123456789abcdef
           ADMIN_USERNAME: owner@ci.invalid
           ADMIN_PASSWORD: CI-Strong-Admin-Password-42
-          APP_MODE: internal
-          INTERNAL_SINGLE_TENANT: 'true'
-          BILLING_REQUIRED: 'false'
-          WA_MAX_CONCURRENT_SESSIONS: 1
+          SUPERADMIN_TOTP_SECRET: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+          STRIPE_SECRET_KEY: sk_live_ci1234567890
+          STRIPE_WEBHOOK_SECRET: whsec_ci1234567890
+          STRIPE_PRICE_ID_BASIC: price_cibasic
+          STRIPE_PRICE_ID_PRO: price_cipro
+          TURNSTILE_SITE_KEY: 0x4AAAAAAACIValidSiteKey123
+          TURNSTILE_SECRET_KEY: 0x4AAAAAAACIValidSecretKey456
           APP_UID: 1000
           APP_GID: 1000
         run: docker compose config --quiet
       - run: docker build --check .
-      - run: docker build --tag whatscarretao:ci .
+      - run: docker build --tag whatsa-ai:ci .
       - name: Smoke Chromium sandbox under production restrictions
         run: >-
           docker run --rm --network none --read-only --tmpfs /tmp:size=256m
           --shm-size 256m --user 1000:1000 --cap-drop ALL
           --security-opt no-new-privileges:true -e HOME=/tmp
           -e XDG_CONFIG_HOME=/tmp/chrome-config -e XDG_CACHE_HOME=/tmp/chrome-cache
-          --entrypoint /usr/bin/chromium whatscarretao:ci
+          --entrypoint /usr/bin/chromium whatsa-ai:ci
           --headless --disable-gpu --no-first-run --dump-dom about:blank

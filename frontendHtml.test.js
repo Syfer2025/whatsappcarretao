@@ -74,7 +74,22 @@ test('external links cannot execute script URLs or control their opener', () => 
   }
 
   const admin = fs.readFileSync('frontend/admin.html', 'utf8');
-  assert.doesNotMatch(admin, /invoice\.stripe\.com|safeHttpsUrl|hostedUrl/);
+  const context = { result: null, URL };
+  vm.createContext(context);
+  new vm.Script([
+    extractFunction(admin, 'safeHttpsUrl'),
+    'result = {',
+    "  https: safeHttpsUrl('https://invoice.stripe.com/i/abc'),",
+    "  javascript: safeHttpsUrl('javascript:alert(1)'),",
+    "  data: safeHttpsUrl('data:text/html,<script>alert(1)</script>'),",
+    "  malformed: safeHttpsUrl('not a url')",
+    '};',
+  ].join('\n')).runInContext(context);
+  assert.equal(context.result.https, 'https://invoice.stripe.com/i/abc');
+  assert.equal(context.result.javascript, '');
+  assert.equal(context.result.data, '');
+  assert.equal(context.result.malformed, '');
+  assert.match(admin, /escapeHtml\(hostedUrl\)/);
 });
 
 test('registration branding is rendered as text, never executable HTML', () => {
@@ -446,7 +461,7 @@ test('login page does not expose whatsapp qr before authentication', () => {
 test('admin page exposes users sectors and connection panels', () => {
   const html = fs.readFileSync('frontend/admin.html', 'utf8');
 
-  assert.match(html, /Agentes/);
+  assert.match(html, /Usuarios/);
   assert.match(html, /Setores/);
   assert.match(html, /Conexao/);
   assert.match(html, /loadUsers/);
@@ -480,7 +495,7 @@ test('admin user management handles quotas, live presence and concurrent edits s
   assert.match(saveSector, /conversas abertas serão liberadas para a fila geral/);
   assert.match(loadUsers, /apiJson\('\/api\/vendors'\)/);
   assert.match(loadUsers, /connection_count/);
-  assert.match(loadUsers, /Novos agentes ainda podem ser preparados como inativos/);
+  assert.match(loadUsers, /Novos usuários ainda podem ser preparados como inativos/);
   assert.match(deactivateUser, /method: 'DELETE'/);
   assert.match(deactivateUser, /row_version: Number\(rowVersion\)/);
   assert.match(html, /socket\.on\('presence:changed'[\s\S]*?setTimeout\(loadUsers, 250\)/);
@@ -488,15 +503,12 @@ test('admin user management handles quotas, live presence and concurrent edits s
 
 test('admin page renders whatsapp qr through a local POST without leaking qr data in urls', () => {
   const html = fs.readFileSync('frontend/admin.html', 'utf8');
-  const vendor = fs.readFileSync('frontend/vendor.html', 'utf8');
 
   assert.match(html, /renderQrImage/);
   assert.match(html, /api\('\/api\/qrcode',\s*\{\s*method:\s*'POST'/);
   assert.match(html, /URL\.createObjectURL/);
   assert.doesNotMatch(html, /\/api\/qrcode\?data=/);
   assert.doesNotMatch(html, /api\.qrserver\.com/);
-  assert.match(html, /st === 'qr'/);
-  assert.match(vendor, /String\(data\?\.state \|\| ''\)\.toLowerCase\(\) === 'qr'/);
 });
 
 for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
@@ -588,19 +600,24 @@ test('shared support widget loads sends reads and refreshes the real support thr
   assert.doesNotMatch(widget, /Online agora/);
 });
 
-test('internal operational pages do not expose the SaaS support channel', () => {
-  for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
+test('support widget is present on every authenticated operational page', () => {
+  for (const file of [
+    'frontend/admin.html',
+    'frontend/vendor.html',
+    'frontend/settings.html',
+    'frontend/setup.html'
+  ]) {
     const html = fs.readFileSync(file, 'utf8');
-    assert.doesNotMatch(html, /<script src="\/support-widget\.js"><\/script>/);
-    assert.doesNotMatch(html, /SupportWidget\?\.attachSocket/);
+    assert.match(html, /<script src="\/support-widget\.js"><\/script>/, `${file} must load the support widget`);
+    assert.match(html, /SupportWidget\?\.attachSocket/, `${file} must connect support realtime updates`);
   }
 });
 
-test('internal admin has no orphaned SaaS support trigger or mock messages', () => {
+test('admin support widget preserves its sidebar trigger without mock messages or fake presence', () => {
   const html = fs.readFileSync('frontend/admin.html', 'utf8');
 
-  assert.doesNotMatch(html, /class="help-btn" onclick="openHelpModal\(\)"/);
-  assert.doesNotMatch(html, /class="help-badge" hidden/);
+  assert.match(html, /class="help-btn" onclick="openHelpModal\(\)"/);
+  assert.match(html, /class="help-badge" hidden/);
   assert.doesNotMatch(html, /id="helpModal"/);
   assert.doesNotMatch(html, /Online agora/);
   assert.doesNotMatch(html, /Olá! Como posso ajudar você hoje/);

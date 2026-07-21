@@ -7,17 +7,14 @@
 <script src="/theme.js" defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entrar | WhatsCarretao</title>
-<link rel="icon" type="image/svg+xml" href="/assets/carretao-mark.svg">
+<title>Login - Atendimento</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { 
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
   background: linear-gradient(135deg, #e9ecef 0%, #d1d7db 100%); 
-  min-height: 100vh; 
-  min-height: 100dvh;
-  padding: 16px;
+  height: 100vh;
   display: flex; 
   align-items: center; 
   justify-content: center; 
@@ -27,7 +24,7 @@ body {
   padding: 48px 40px; 
   border-radius: 24px; 
   box-shadow: 0 20px 40px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05); 
-  width: min(400px, 100%); 
+  width: 400px;
   text-align: center; 
   position: relative;
   overflow: hidden;
@@ -39,34 +36,17 @@ body {
   background: linear-gradient(90deg, #25d366, #128C7E);
 }
 .brand-logo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.brand-logo img {
-  display: block;
-  width: min(270px, 100%);
-  height: auto;
-}
-/* O logotipo tem uma versão para fundo claro (cavalo escuro) e outra para fundo
-   escuro (cavalo branco). Trocamos conforme o tema para que o cavalo nunca fique
-   invisível sobre o próprio fundo. */
-.brand-logo .brand-logo-dark { display: none; }
-[data-theme="dark"] .brand-logo .brand-logo-light { display: none; }
-[data-theme="dark"] .brand-logo .brand-logo-dark { display: block; }
-.brand-system-name {
-  color: #111b21;
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  color: #111b21;
+  margin-bottom: 6px;
+  letter-spacing: -1px;
 }
+.brand-logo .highlight { color: #25d366; }
 .brand-subtitle {
   font-size: 14px;
   color: #667781;
   margin-bottom: 32px;
-  line-height: 1.5;
 }
 .input-group {
   position: relative;
@@ -162,37 +142,40 @@ body {
   border: 1px solid #fecaca;
   font-weight: 500;
 }
+.cadastro-link {
+  display: inline-block;
+  margin-top: 24px;
+  font-size: 14px;
+  color: #54656f;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.cadastro-link:hover { color: #25d366; }
+
 /* ===== Tema escuro ===== */
 [data-theme="dark"] { color-scheme: dark; }
 [data-theme="dark"] body { background: linear-gradient(135deg, #0b141a 0%, #111b21 100%); }
 [data-theme="dark"] .card { background: #111b21; box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4); }
-[data-theme="dark"] .brand-system-name { color: #e9edef; }
+[data-theme="dark"] .brand-logo { color: #e9edef; }
 [data-theme="dark"] .brand-subtitle { color: #8696a0; }
 [data-theme="dark"] .input-group label { color: #aebac1; }
 [data-theme="dark"] .input-group small { color: #8696a0; }
 [data-theme="dark"] .card input { background: #202c33; border-color: rgba(255,255,255,0.14); color: #e9edef; }
 [data-theme="dark"] .card input:focus { background: #202c33; border-color: #25d366; }
+[data-theme="dark"] .cadastro-link { color: #8696a0; }
 [data-theme="dark"] .erro { background: rgba(241,92,109,0.14); color: #f6a6ad; border-color: rgba(241,92,109,0.3); }
-
-@media (max-width: 480px) {
-  .card { padding: 40px 24px; border-radius: 20px; }
-  .brand-logo img { width: min(240px, 100%); }
-}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="brand-logo" id="brandLogo">
-    <img class="brand-logo-light" src="/assets/carretao-logo.svg" alt="Auto Peças Carretão" width="1929" height="1106">
-    <img class="brand-logo-dark" src="/assets/carretao-logo-dark.svg" alt="Auto Peças Carretão" width="1929" height="1106">
-    <div class="brand-system-name" id="brandSystemName">WhatsCarretao</div>
-  </div>
-  <div class="brand-subtitle">Sistema interno de atendimento<br>Auto Peças Carretão</div>
+  <div class="brand-logo" id="brandLogo"><span class="highlight">WhatsApp</span> AI</div>
+  <div class="brand-subtitle">Acesse sua conta para continuar</div>
   <div class="erro" id="erro"></div>
   
   <div class="input-group">
-    <label for="username">E-mail ou usuário</label>
-    <input type="text" id="username" placeholder="Digite seu e-mail ou usuário" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="username">Usuário</label>
+    <input type="text" id="username" placeholder="Digite seu usuário" autocomplete="off">
   </div>
   
   <div class="input-group">
@@ -200,7 +183,9 @@ body {
     <input type="password" id="password" placeholder="Digite sua senha" autocomplete="current-password">
   </div>
 
-  <button id="loginBtn" onclick="login()">Entrar no WhatsCarretao</button>
+  <button id="loginBtn" onclick="login()">Entrar na Plataforma</button>
+  <a href="/forgot-password.html" class="cadastro-link">Esqueci minha senha</a><br>
+  <a href="/register.html" class="cadastro-link">Não tem conta? Cadastre-se</a>
 </div>
 
 <script>
@@ -213,7 +198,7 @@ async function login() {
   erro.style.display = 'none';
 
   if (!username || !password) {
-    erro.textContent = 'Preencha o e-mail ou usuário e a senha';
+    erro.textContent = 'Preencha usuário e senha';
     erro.style.display = 'block';
     return;
   }
@@ -226,7 +211,7 @@ async function login() {
       btn.innerHTML = '<span class="btn-spinner"></span>Entrando…';
     } else {
       btn.classList?.remove('loading');
-      btn.textContent = 'Entrar no WhatsCarretao';
+      btn.textContent = 'Entrar na Plataforma';
     }
   };
 
@@ -249,7 +234,11 @@ async function login() {
     // Mantém o botão em "Entrando…" durante o redirect — a página só troca
     // quando o navegador carrega o destino, e reabilitar aqui piscaria o botão.
     if (data.role === 'admin') {
-      window.location.href = data.super_admin ? '/superadmin.html' : '/admin.html';
+      window.location.href = data.super_admin
+        ? '/superadmin.html'
+        : data.billing_required
+          ? '/admin.html?tab=financeiro&billing=required'
+          : '/admin.html';
     } else {
       window.location.href = '/vendor.html';
     }
@@ -266,8 +255,8 @@ document.getElementById('password').addEventListener('keydown', e => { if (e.key
 fetch('/api/branding').then(r => r.json()).then(b => {
   if (b.appName) {
     document.title = `Login - ${b.appName}`;
-    const systemName = document.getElementById('brandSystemName');
-    if (systemName) systemName.textContent = b.appName;
+    const logo = document.getElementById('brandLogo');
+    if (logo) logo.textContent = b.appName;
   }
 }).catch(() => {});
 </script>

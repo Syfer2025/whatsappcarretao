@@ -1,6 +1,5 @@
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const { ensureSchema, applyPragmas } = require('./schema');
@@ -9,7 +8,6 @@ const {
   releaseProductionWriterLease
 } = require('./productionWriterBootstrap');
 const { encryptSecret, decryptSecret, maskSecret } = require('./secretVault');
-const { getInternalAgentLimit, isInternalEdition } = require('./internalEdition');
 const {
   normalizeUsername,
   collectTenantAccounts,
@@ -26,7 +24,6 @@ const PLAN_USER_LIMITS = Object.freeze({
 });
 const TENANT_NAME_MAX_LENGTH = 160;
 const TENANT_KEY_MAX_LENGTH = 63;
-const INTERNAL_EDITION = isInternalEdition();
 
 function inputError(message) {
   const err = new Error(message);
@@ -1337,7 +1334,6 @@ function failStripeEvent(eventId, error) {
 // automaticamente (sem depender de cron), e sempre libera clientes em cortesia.
 function getEffectiveBillingStatus(tenant) {
   if (!tenant) return 'suspended';
-  if (INTERNAL_EDITION && String(tenant.slug).toLowerCase() === 'default') return 'active';
   if (tenant.comp) return 'active';
   const billingRequired = process.env.NODE_ENV === 'production' && process.env.BILLING_REQUIRED !== 'false';
   if (billingRequired
@@ -1894,128 +1890,6 @@ if (master.prepare('SELECT COUNT(*) as c FROM tenants').get().c === 0) {
   // Tenant padrão é a instância do próprio dono da plataforma — não cobra dele.
   setBillingFields(defaultTenant.id, { billing_status: 'active' });
 }
-
-function ensureInternalEditionTenant() {
-  if (!INTERNAL_EDITION) return null;
-
-  const tenants = listTenants();
-  if (tenants.length !== 1 || String(tenants[0].slug).toLowerCase() !== 'default') {
-    throw new Error('APP_MODE=internal exige exatamente um tenant com slug default');
-  }
-
-  const tenant = tenants[0];
-  const ownerUsername = normalizeUsername(process.env.ADMIN_USERNAME);
-  const ownerPassword = process.env.ADMIN_PASSWORD || process.env.ADMIN_INITIAL_PASSWORD || '';
-  const ownerName = String(process.env.INTERNAL_ADMIN_NAME || 'Super Admin').trim();
-  const companyName = normalizeTenantName(process.env.TENANT_NAME || 'Auto Peças Carretão');
-  const subdomain = normalizeTenantKey(process.env.TENANT_SUBDOMAIN || 'carretao', 'Subdominio');
-  const agentLimit = getInternalAgentLimit();
-
-  if (!ownerUsername || ownerUsername.length > 254 || /\p{Cc}/u.test(ownerUsername)) {
-    throw new Error('ADMIN_USERNAME invalido para a edicao interna');
-  }
-  const passwordBytes = Buffer.byteLength(ownerPassword, 'utf8');
-  if (Array.from(ownerPassword).length < 10 || passwordBytes > 72) {
-    throw new Error('ADMIN_PASSWORD deve ter entre 10 caracteres e 72 bytes UTF-8');
-  }
-  if (!ownerName || ownerName.length > 160 || /\p{Cc}/u.test(ownerName)) {
-    throw new Error('INTERNAL_ADMIN_NAME invalido');
-  }
-
-  const tenantDb = getTenantDb(tenant.id);
-  const vendorCollision = tenantDb.prepare(`
-    SELECT 1 FROM vendors WHERE username = ? COLLATE NOCASE LIMIT 1
-  `).get(ownerUsername);
-  if (vendorCollision) {
-    throw new Error('ADMIN_USERNAME colide com um agente da edicao interna');
-  }
-
-  let settings = {};
-  try {
-    const parsed = JSON.parse(tenant.settings || '{}');
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) settings = parsed;
-  } catch {}
-  settings.appName = process.env.APP_NAME || 'WhatsCarretao';
-  settings.appCompany = process.env.APP_COMPANY || companyName;
-
-  master.transaction(() => {
-    master.prepare(`
-      UPDATE tenants
-      SET name = ?,
-          subdomain = ?,
-          status = 'active',
-          settings = ?,
-          billing_status = 'active',
-          trial_ends_at = NULL,
-          stripe_customer_id = NULL,
-          stripe_subscription_id = NULL,
-          stripe_checkout_session_id = NULL,
-          checkout_expires_at = NULL,
-          stripe_price_id = NULL,
-          plan_price_cents = NULL,
-          user_limit_override = ?,
-          comp = 1,
-          trial_notified_at = NULL,
-          billing_block_reason = NULL,
-          billing_resume_status = NULL
-      WHERE id = ?
-    `).run(companyName, subdomain, JSON.stringify(settings), agentLimit, tenant.id);
-
-    tenantDb.transaction(() => {
-      const admins = tenantDb.prepare('SELECT * FROM admins ORDER BY id').all();
-      let selected = admins.find(admin => normalizeUsername(admin.username) === ownerUsername)
-        || admins[0]
-        || null;
-
-      if (!selected) {
-        const created = tenantDb.prepare(`
-          INSERT INTO admins (name, username, password, super_admin)
-          VALUES (?, ?, ?, 0)
-        `).run(ownerName, ownerUsername, bcrypt.hashSync(ownerPassword, 10));
-        selected = { id: Number(created.lastInsertRowid) };
-      } else {
-        tenantDb.prepare('DELETE FROM admins WHERE id <> ?').run(selected.id);
-        let passwordChanged = true;
-        try {
-          passwordChanged = !bcrypt.compareSync(ownerPassword, selected.password);
-        } catch {}
-        const usernameChanged = normalizeUsername(selected.username) !== ownerUsername;
-        const nextPassword = passwordChanged
-          ? bcrypt.hashSync(ownerPassword, 10)
-          : selected.password;
-        tenantDb.prepare(`
-          UPDATE admins
-          SET name = ?,
-              username = ?,
-              password = ?,
-              super_admin = 0,
-              token_version = token_version + ?
-          WHERE id = ?
-        `).run(ownerName, ownerUsername, nextPassword, usernameChanged || passwordChanged ? 1 : 0, selected.id);
-      }
-
-      tenantDb.prepare(`
-        INSERT INTO sectors (name, active)
-        VALUES ('Atendimento', 1)
-        ON CONFLICT(name) DO UPDATE SET active = 1
-      `).run();
-    }).immediate();
-
-    // user_directory é derivado. Recriá-lo aqui também remove o login antigo
-    // quando o proprietário é rotacionado pelo .env.
-    master.prepare(`
-      DELETE FROM user_directory WHERE tenant_id = ? AND role = 'admin'
-    `).run(tenant.id);
-    master.prepare('DELETE FROM user_directory WHERE username = ? COLLATE NOCASE').run(ownerUsername);
-    master.prepare(`
-      INSERT INTO user_directory (username, tenant_id, role) VALUES (?, ?, 'admin')
-    `).run(ownerUsername, tenant.id);
-  }).immediate();
-
-  return getTenant(tenant.id);
-}
-
-ensureInternalEditionTenant();
 
 // ============ MIGRAÇÃO: preencher diretório global a partir dos dados existentes ============
 // Antes do login ser resolvido pelo diretório, admins/vendedores já podiam existir

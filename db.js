@@ -6,10 +6,7 @@ const { ensureSchema, applyPragmas } = require('./schema');
 const { createTenantScopedProxy } = require('./tenantDbProxy');
 const { normalizeUsername } = require('./userDirectoryIntegrity');
 const { ensureProductionWriterLease } = require('./productionWriterBootstrap');
-const { isInternalEdition } = require('./internalEdition');
 const bcrypt = require('bcryptjs');
-
-const INTERNAL_EDITION = isInternalEdition();
 
 // Contexto de tenant para requisições — permite que o mesmo `db.prepare(...)`
 // aponte automaticamente pro banco do tenant sem alterar o código existente.
@@ -38,7 +35,7 @@ if (initialAdminPassword) {
     throw new Error('ADMIN_PASSWORD deve ter entre 10 caracteres e 72 bytes UTF-8');
   }
 }
-if (productionWriterBootstrap && !INTERNAL_EDITION) {
+if (productionWriterBootstrap) {
   const hasDirectory = productionWriterBootstrap.master.prepare(`
     SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'user_directory'
   `).get();
@@ -52,22 +49,14 @@ if (productionWriterBootstrap && !INTERNAL_EDITION) {
   }
 }
 
-if (INTERNAL_EDITION) {
-  // A edição interna não possui identidade de plataforma. O único proprietário
-  // é criado como admin do tenant `default` pelo tenantManager, para que todas
-  // as operações continuem presas ao contexto/DB da empresa.
-  defaultDb.transaction(() => {
-    defaultDb.prepare('DELETE FROM admins').run();
-  }).immediate();
-} else {
-  defaultDb.transaction(() => {
-    const superAdmins = defaultDb.prepare(`
+defaultDb.transaction(() => {
+  const superAdmins = defaultDb.prepare(`
     SELECT * FROM admins WHERE coalesce(super_admin, 0) = 1 ORDER BY id
   `).all();
-    const targetRow = defaultDb.prepare(`
+  const targetRow = defaultDb.prepare(`
     SELECT * FROM admins WHERE username = ? COLLATE NOCASE
   `).get(initialAdminUsername);
-    let selected = superAdmins.find(admin => Number(admin.id) === Number(targetRow?.id)) || superAdmins[0] || null;
+  let selected = superAdmins.find(admin => Number(admin.id) === Number(targetRow?.id)) || superAdmins[0] || null;
 
   if (!selected) {
     if (targetRow) {
@@ -109,8 +98,7 @@ if (INTERNAL_EDITION) {
     SET super_admin = 0, token_version = token_version + 1
     WHERE coalesce(super_admin, 0) = 1 AND id <> ?
   `).run(selected.id);
-  }).immediate();
-}
+}).immediate();
 
 // Fail closed: chamadas genéricas sem AsyncLocalStorage nunca caem no banco
 // padrão. Operações da plataforma devem usar db.defaultDb explicitamente.

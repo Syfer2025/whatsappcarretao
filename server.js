@@ -1,17 +1,5 @@
 require('dotenv').config();
 
-// Arquivos de banco, sessao do WhatsApp, midia e logs podem conter dados
-// sensiveis. Falha fechada por padrao: somente o usuario do processo pode ler
-// arquivos novos, inclusive quando a aplicacao e iniciada fora do Docker.
-process.umask(0o077);
-
-const {
-  isInternalBlockedApiPath,
-  isInternalEdition,
-  isInternalHtmlPath
-} = require('./internalEdition');
-const INTERNAL_EDITION = isInternalEdition();
-
 // Em produção, nenhuma migração, lease, criação de credencial ou inicialização
 // do WhatsApp pode acontecer antes da validação completa do ambiente. O
 // deploy.sh já faz esta checagem, mas o servidor também precisa ser seguro
@@ -298,17 +286,11 @@ function validateRuntimeConfig() {
   // configura em runtime pela aba Stripe (guardadas criptografadas no master.db).
   // Enquanto não configuradas, o produto sobe e os tenants seguem em trial; o
   // checkout só fica disponível depois que as chaves são preenchidas no painel.
-  if (production && !INTERNAL_EDITION && process.env.TRIAL_DAYS && Number(process.env.TRIAL_DAYS) !== 3) {
+  if (production && process.env.TRIAL_DAYS && Number(process.env.TRIAL_DAYS) !== 3) {
     throw new Error('TRIAL_DAYS deve ser exatamente 3 em produção');
   }
-  if (production && !INTERNAL_EDITION && process.env.BILLING_REQUIRED === 'false') {
+  if (production && process.env.BILLING_REQUIRED === 'false') {
     throw new Error('BILLING_REQUIRED nao pode ser desativado em produção');
-  }
-  if (production && INTERNAL_EDITION && process.env.BILLING_REQUIRED !== 'false') {
-    throw new Error('BILLING_REQUIRED deve ser false na edicao interna');
-  }
-  if (production && INTERNAL_EDITION && Number(process.env.WA_MAX_CONCURRENT_SESSIONS || 1) !== 1) {
-    throw new Error('WA_MAX_CONCURRENT_SESSIONS deve ser 1 na edicao interna');
   }
   if (production && process.env.COOKIE_SECURE === 'false') {
     throw new Error('COOKIE_SECURE nao pode ser desativado em produção');
@@ -316,7 +298,7 @@ function validateRuntimeConfig() {
   if (production && !['isolated', 'per-tenant'].includes(String(process.env.WA_BROWSER_MODE || 'isolated').toLowerCase())) {
     throw new Error('WA_BROWSER_MODE deve manter isolamento por tenant em produção');
   }
-  if (production && !INTERNAL_EDITION && process.env.STRIPE_SECRET_KEY && !String(process.env.STRIPE_SECRET_KEY).startsWith('sk_live_')) {
+  if (production && process.env.STRIPE_SECRET_KEY && !String(process.env.STRIPE_SECRET_KEY).startsWith('sk_live_')) {
     throw new Error('STRIPE_SECRET_KEY deve ser uma chave live em produção');
   }
   if (production && process.env.APP_URL) {
@@ -337,7 +319,7 @@ function validateRuntimeConfig() {
   if (!process.env.JWT_SECRET) {
     logger.warn('JWT_SECRET nao configurado; usando segredo temporario de desenvolvimento');
   }
-  if (production && !INTERNAL_EDITION && !process.env.SUPERADMIN_TOTP_SECRET) {
+  if (production && !process.env.SUPERADMIN_TOTP_SECRET) {
     logger.warn(
       'SUPERADMIN_TOTP_SECRET ausente: super admin opera SEM segundo fator em produção '
       + '(decisão do operador em 15/jul/2026; para reativar, defina o segredo e recrie o container)'
@@ -480,24 +462,6 @@ app.use('/api', (_req, res, next) => {
   next();
 });
 
-// A edição exclusiva não expõe nenhuma superfície SaaS, nem mesmo quando uma
-// URL é chamada diretamente. O bloqueio fica antes do webhook, dos parsers e
-// dos arquivos estáticos para não inicializar integrações comerciais.
-app.use((req, res, next) => {
-  if (!INTERNAL_EDITION) return next();
-  if (isInternalBlockedApiPath(req.path)) {
-    return res.status(404).json({
-      error: 'Recurso indisponível na edição interna',
-      code: 'INTERNAL_MODE'
-    });
-  }
-  if (isInternalHtmlPath(req.path) || req.path.startsWith('/support-media/')) {
-    setNoStoreHeaders(res);
-    return res.status(404).type('text/plain').send('Página não encontrada');
-  }
-  return next();
-});
-
 // Webhook do Stripe precisa do corpo bruto (raw) para validar a assinatura,
 // então é registrado ANTES do parser JSON global.
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
@@ -531,7 +495,6 @@ app.use('/api/login', loginLimiter);
 app.use('/api/', apiLimiter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '50mb' }));
 app.use(express.static(path.join(__dirname, 'frontend'), {
-  index: INTERNAL_EDITION ? false : 'index.html',
   setHeaders(res, filePath) {
     if (path.extname(filePath).toLowerCase() === '.html') setNoStoreHeaders(res);
   }
@@ -540,7 +503,6 @@ app.use(express.static(path.join(__dirname, 'frontend'), {
 // Rotas PÚBLICAS (precisam vir ANTES do tenant middleware)
 app.get('/', (_req, res) => {
   setNoStoreHeaders(res);
-  if (INTERNAL_EDITION) return res.redirect('/login.html');
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
@@ -594,7 +556,6 @@ function readinessChecks() {
 }
 
 function isBillingConfigured() {
-  if (INTERNAL_EDITION) return false;
   const resolved = require('./tenantManager').getResolvedPlatformEnv();
   const effective = { ...process.env, ...resolved };
   return require('./billing').getBillingConfigurationStatus(effective).configured;
@@ -610,7 +571,6 @@ function getSignupChallengeConfiguration() {
 }
 
 function isPublicSignupConfigured() {
-  if (INTERNAL_EDITION) return false;
   if (process.env.NODE_ENV !== 'production') return true;
   const challenge = getSignupChallengeConfiguration().status;
   return isBillingConfigured() && (challenge.configured || challenge.reason === 'disabled');
@@ -691,17 +651,6 @@ app.post('/api/qrcode', authMiddleware(['admin']), async (req, res) => {
 });
 
 app.get('/api/branding', (_req, res) => {
-  if (INTERNAL_EDITION) {
-    return res.json({
-      appName: process.env.APP_NAME || 'WhatsCarretao',
-      appCompany: process.env.APP_COMPANY || 'Auto Peças Carretão',
-      logoUrl: '/assets/carretao-logo.svg',
-      internalEdition: true,
-      signupBillingConfigured: false,
-      signupConfigured: false,
-      turnstileSiteKey: ''
-    });
-  }
   const challenge = getSignupChallengeConfiguration();
   res.json({
     appName: process.env.APP_NAME || 'WhatsApp AI',
@@ -1360,13 +1309,11 @@ function sweepBlockedTenantSockets() {
   }
 }
 
-const billingSessionSweepTimer = INTERNAL_EDITION
-  ? null
-  : setInterval(
-    sweepBlockedTenantSockets,
-    Number(process.env.BILLING_SESSION_SWEEP_MS || 30000)
-  );
-billingSessionSweepTimer?.unref?.();
+const billingSessionSweepTimer = setInterval(
+  sweepBlockedTenantSockets,
+  Number(process.env.BILLING_SESSION_SWEEP_MS || 30000)
+);
+billingSessionSweepTimer.unref?.();
 let trialCheckStartTimer = null;
 let trialCheckInterval = null;
 let provisioningRecoveryStartTimer = null;
@@ -6316,37 +6263,35 @@ async function recoverStaleProvisioningTenants() {
 
 // ============ START ============
 
-// A edição SaaS conclui claims duráveis antes de aceitar login. Recuperação de
-// senha de plataforma não existe na instalação interna exclusiva.
-if (!INTERNAL_EDITION) recoverPasswordResetResolutionsNow();
+// Conclui claims duráveis antes de aceitar qualquer login. Se um erro de I/O
+// persistir, o próprio login consulta o claim e permanece fail-closed.
+recoverPasswordResetResolutionsNow();
 
 httpServer.listen(PORT, () => {
   logger.info({ port: PORT }, `Servidor rodando em http://localhost:${PORT}`);
-  if (!INTERNAL_EDITION) {
-    provisioningRecoveryStartTimer = setTimeout(
-      () => recoverStaleProvisioningTenants(),
-      5000
-    );
-    const configuredProvisioningIntervalMs = Number(process.env.TENANT_PROVISIONING_RECOVERY_INTERVAL_MS);
-    const provisioningIntervalMs = Number.isFinite(configuredProvisioningIntervalMs)
-      && configuredProvisioningIntervalMs > 0
-      ? Math.max(60 * 1000, configuredProvisioningIntervalMs)
-      : 5 * 60 * 1000;
-    provisioningRecoveryInterval = setInterval(
-      () => recoverStaleProvisioningTenants(),
-      provisioningIntervalMs
-    );
-    trialCheckStartTimer = setTimeout(
-      () => checkTrialsAndNotify().catch(err => logger.error({ err }, 'Erro no check de trials')),
-      30000
-    );
-    trialCheckInterval = setInterval(
-      () => checkTrialsAndNotify().catch(err => logger.error({ err }, 'Erro no check de trials')),
-      24 * 60 * 60 * 1000
-    );
-    trialCheckStartTimer.unref?.();
-    trialCheckInterval.unref?.();
-    provisioningRecoveryStartTimer.unref?.();
-    provisioningRecoveryInterval.unref?.();
-  }
+  provisioningRecoveryStartTimer = setTimeout(
+    () => recoverStaleProvisioningTenants(),
+    5000
+  );
+  const configuredProvisioningIntervalMs = Number(process.env.TENANT_PROVISIONING_RECOVERY_INTERVAL_MS);
+  const provisioningIntervalMs = Number.isFinite(configuredProvisioningIntervalMs)
+    && configuredProvisioningIntervalMs > 0
+    ? Math.max(60 * 1000, configuredProvisioningIntervalMs)
+    : 5 * 60 * 1000;
+  provisioningRecoveryInterval = setInterval(
+    () => recoverStaleProvisioningTenants(),
+    provisioningIntervalMs
+  );
+  trialCheckStartTimer = setTimeout(
+    () => checkTrialsAndNotify().catch(err => logger.error({ err }, 'Erro no check de trials')),
+    30000
+  );
+  trialCheckInterval = setInterval(
+    () => checkTrialsAndNotify().catch(err => logger.error({ err }, 'Erro no check de trials')),
+    24 * 60 * 60 * 1000
+  );
+  trialCheckStartTimer.unref?.();
+  trialCheckInterval.unref?.();
+  provisioningRecoveryStartTimer.unref?.();
+  provisioningRecoveryInterval.unref?.();
 });

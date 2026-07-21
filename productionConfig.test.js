@@ -33,45 +33,6 @@ function validEnvironment(overrides = {}) {
   };
 }
 
-function validInternalEnvironment(overrides = {}) {
-  return validEnvironment({
-    APP_MODE: 'internal',
-    INTERNAL_SINGLE_TENANT: 'true',
-    INTERNAL_ADMIN_NAME: 'Super Admin',
-    INTERNAL_AGENT_LIMIT: '100',
-    BILLING_REQUIRED: 'false',
-    WA_MAX_CONCURRENT_SESSIONS: '1',
-    STRIPE_SECRET_KEY: '',
-    STRIPE_WEBHOOK_SECRET: '',
-    STRIPE_PRICE_ID_BASIC: '',
-    STRIPE_PRICE_ID_PRO: '',
-    TURNSTILE_SITE_KEY: '',
-    TURNSTILE_SECRET_KEY: '',
-    ...overrides,
-  });
-}
-
-test('accepts the exclusive internal edition without Stripe, trial or Turnstile', () => {
-  assert.deepEqual(validateProductionEnv(validInternalEnvironment()), []);
-});
-
-test('internal edition enforces one WhatsApp session and a bounded agent limit', () => {
-  const errors = validateProductionEnv(validInternalEnvironment({
-    INTERNAL_SINGLE_TENANT: 'false',
-    INTERNAL_AGENT_LIMIT: '10001',
-    WA_MAX_CONCURRENT_SESSIONS: '2',
-    BILLING_REQUIRED: 'true',
-  }));
-  for (const expected of [
-    'INTERNAL_SINGLE_TENANT',
-    'INTERNAL_AGENT_LIMIT',
-    'WA_MAX_CONCURRENT_SESSIONS',
-    'BILLING_REQUIRED',
-  ]) {
-    assert.ok(errors.some(error => error.includes(expected)), `${expected} should be rejected`);
-  }
-});
-
 test('accepts both plan-specific Stripe prices', () => {
   assert.deepEqual(validateProductionEnv(validEnvironment()), []);
 });

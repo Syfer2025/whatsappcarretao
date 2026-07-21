@@ -16,8 +16,8 @@ test('docker deployment files persist database whatsapp auth and media', () => {
   assert.match(dockerfile, /FFMPEG_PATH=\/usr\/bin\/ffmpeg/);
   assert.match(dockerfile, /CMD \["node", "server\.js"\]/);
   assert.match(dockerfile, /health\/ready/);
-  assert.match(compose, /whatscarretao:/);
-  assert.match(compose, /127\.0\.0\.1.*3100:3100/);
+  assert.match(compose, /whatsa-ai:/);
+  assert.match(compose, /127\.0\.0\.1.*3000:3000/);
   // Persistência: monta a PASTA data/ inteira (master.db, data.db e bancos por
   // tenant com seus -wal/-shm). Montar arquivos .db avulsos perdia o WAL.
   assert.match(compose, /\.\/data:\/app\/data/);
@@ -46,7 +46,6 @@ test('docker deployment files persist database whatsapp auth and media', () => {
 test('container runs as non-root with reduced privileges', () => {
   const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
   const compose = fs.readFileSync('docker-compose.yml', 'utf8');
-  const server = fs.readFileSync('server.js', 'utf8');
 
   assert.match(dockerfile, /USER node:node/);
   assert.match(dockerfile, /chown -R node:node data media backups \.wwebjs_auth \.wwebjs_cache/);
@@ -61,7 +60,6 @@ test('container runs as non-root with reduced privileges', () => {
   assert.match(compose, /cpus:/);
   assert.match(compose, /ulimits:[\s\S]*nofile:[\s\S]*65536/);
   assert.match(compose, /logging:[\s\S]*max-size:[\s\S]*max-file:/);
-  assert.match(server, /process\.umask\(0o077\)/);
 });
 
 test('project has lint formatting and CI entrypoints', () => {
@@ -86,12 +84,15 @@ test('project has lint formatting and CI entrypoints', () => {
   assert.match(ci, /npm ci/);
   assert.match(ci, /npm test/);
   assert.match(ci, /npm run lint/);
-  assert.equal((ci.match(/APP_MODE: internal/g) || []).length, 2);
-  assert.equal((ci.match(/INTERNAL_SINGLE_TENANT: 'true'/g) || []).length, 2);
+  assert.equal(
+    (ci.match(/SUPERADMIN_TOTP_SECRET:/g) || []).length,
+    2,
+    'both production contract checks in CI must supply the mandatory MFA secret',
+  );
   assert.doesNotMatch(ci, /STRIPE_PRICE_ID_(?:BASIC|PRO):\s+price_[A-Za-z0-9]+_[A-Za-z0-9]+/);
   assert.match(ci, /docker compose config --quiet/);
   assert.match(ci, /docker build --check/);
-  assert.match(ci, /docker build --tag whatscarretao:ci/);
+  assert.match(ci, /docker build --tag whatsa-ai:ci/);
   assert.match(
     ci,
     /docker run[\s\S]*--user 1000:1000[\s\S]*--cap-drop ALL[\s\S]*no-new-privileges:true[\s\S]*\/usr\/bin\/chromium[\s\S]*--dump-dom about:blank/,
@@ -127,7 +128,7 @@ test('security operations runbook and CI cover production controls', () => {
   }
 });
 
-test('production compose fails closed on internal authentication and single-company invariants', () => {
+test('production compose fails closed on billing and authentication configuration', () => {
   const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
   const compose = fs.readFileSync('docker-compose.yml', 'utf8');
 
@@ -140,14 +141,26 @@ test('production compose fails closed on internal authentication and single-comp
   ]) {
     assert.match(compose, new RegExp(`${variable}: \\${'${'}${variable}:\\?`));
   }
-  assert.match(compose, /APP_MODE:\s+internal/);
-  assert.match(compose, /INTERNAL_SINGLE_TENANT:\s+['"]true['"]/);
-  assert.match(compose, /INTERNAL_AGENT_LIMIT:/);
-  assert.match(compose, /BILLING_REQUIRED:\s+['"]false['"]/);
-  assert.match(compose, /WA_MAX_CONCURRENT_SESSIONS:\s+['"]1['"]/);
-  assert.doesNotMatch(compose, /STRIPE_(?:SECRET|WEBHOOK|PRICE)/);
-  assert.doesNotMatch(compose, /TURNSTILE_(?:SITE|SECRET)/);
-  assert.doesNotMatch(compose, /TRIAL_DAYS:/);
+  // Stripe e Turnstile são configurados em runtime pelo super admin (guardados
+  // criptografados no master.db), então o compose os trata como opcionais (:-),
+  // não como obrigatórios (:?): o produto sobe e configura-se pela aba Stripe.
+  // SUPERADMIN_TOTP_SECRET tornou-se opcional em 15/jul/2026 por decisão do
+  // dono da plataforma: presente = 2FA do super admin ligado; vazio = login
+  // do super admin apenas com e-mail e senha.
+  for (const variable of [
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'TURNSTILE_SITE_KEY',
+    'TURNSTILE_SECRET_KEY',
+    'SUPERADMIN_TOTP_SECRET',
+  ]) {
+    assert.match(compose, new RegExp(`${variable}: \\${'${'}${variable}:-\\}`));
+  }
+  assert.match(compose, /STRIPE_PRICE_ID:\s+\$\{STRIPE_PRICE_ID:-\}/);
+  assert.match(compose, /STRIPE_PRICE_ID_BASIC:\s+\$\{STRIPE_PRICE_ID_BASIC:-\}/);
+  assert.match(compose, /STRIPE_PRICE_ID_PRO:\s+\$\{STRIPE_PRICE_ID_PRO:-\}/);
+  assert.match(compose, /BILLING_REQUIRED:\s+['"]true['"]/);
+  assert.match(compose, /TRIAL_DAYS:\s+['"]3['"]/);
   assert.match(compose, /WA_BROWSER_MODE:\s+isolated/);
   assert.match(compose, /COOKIE_SECURE:\s+['"]true['"]/);
   assert.match(compose, /SQLITE_SYNCHRONOUS:\s+FULL/);
@@ -219,7 +232,7 @@ test('deploy builds online, snapshots once while quiescent and rolls back every 
   assert.match(deploy, /POST_STOP_UNVALIDATED=true/);
   assert.match(
     deploy,
-    /if ! docker compose stop --timeout "\$DEPLOY_STOP_TIMEOUT" "\$DEPLOY_APP_NAME"; then[\s\S]*rollback "falha ao solicitar a parada graciosa/,
+    /if ! docker compose stop --timeout "\$DEPLOY_STOP_TIMEOUT" whatsa-ai; then[\s\S]*rollback "falha ao solicitar a parada graciosa/,
   );
   assert.match(deploy, /force-recreate/);
   assert.match(deploy, /CANDIDATE_IMAGE/);
@@ -239,10 +252,14 @@ test('example environment uses placeholders and backup implementation excludes e
     'CORS_ORIGIN',
     'JWT_SECRET',
     'ADMIN_PASSWORD',
-    'APP_MODE',
-    'INTERNAL_SINGLE_TENANT',
-    'INTERNAL_ADMIN_NAME',
-    'INTERNAL_AGENT_LIMIT',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_PRICE_ID',
+    'STRIPE_PRICE_ID_BASIC',
+    'STRIPE_PRICE_ID_PRO',
+    'TURNSTILE_SITE_KEY',
+    'TURNSTILE_SECRET_KEY',
+    'STRIPE_CHECKOUT_RESERVATION_MINUTES',
     'BACKUP_RETENTION',
     'BACKUP_LOCK_STALE_MS',
     'BACKUP_FREE_MARGIN_MB',
@@ -285,17 +302,14 @@ test('example environment uses placeholders and backup implementation excludes e
     assert.match(example, new RegExp(`^${variable}=`, 'm'));
   }
   assert.match(example, /JWT_SECRET=CHANGE_ME/);
-  assert.match(example, /^APP_MODE=internal$/m);
-  assert.match(example, /^INTERNAL_SINGLE_TENANT=true$/m);
-  assert.doesNotMatch(example, /^STRIPE_/m);
-  assert.doesNotMatch(example, /^TURNSTILE_/m);
+  assert.match(example, /STRIPE_SECRET_KEY=CHANGE_ME/);
   assert.match(backup, /database\.backup\(destination\)/);
   assert.match(backup, /\.wwebjs_auth/);
   assert.match(backup, /manifest\.json/);
   assert.match(backup, /applyRetention/);
   assert.match(backup, /integrity_check/);
   assert.match(backup, /summarizeSnapshotTree/);
-  assert.match(example, /WA_MAX_CONCURRENT_SESSIONS=1/);
+  assert.match(example, /WA_MAX_CONCURRENT_SESSIONS=5/);
   assert.match(example, /WA_START_DEFAULT_SESSION=false/);
   assert.match(compose, /WA_START_DEFAULT_SESSION:\s+\$\{WA_START_DEFAULT_SESSION:-false\}/);
   assert.match(example, /^BACKUP_RETENTION=4$/m);

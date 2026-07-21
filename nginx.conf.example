@@ -1,14 +1,16 @@
-# Reverse proxy SSL para WhatsCarretao (edição interna, single-tenant).
-# Use um único domínio da Auto Peças Carretão; não é necessário DNS wildcard.
+# Reverse proxy SSL para whatsa-ai
+# Um único domínio serve todos os clientes — o tenant é resolvido pelo
+# login (e-mail/usuário), não pelo subdomínio. Não precisa de DNS wildcard
+# nem de certificado wildcard, só o domínio principal.
 #
 # Uso:
-#   sudo ln -s /etc/nginx/sites-available/whatscarretao /etc/nginx/sites-enabled/
+#   sudo ln -s /etc/nginx/sites-available/whatsa-ai /etc/nginx/sites-enabled/
 #   sudo certbot --nginx -d app.suaempresa.com.br
 
 # Estas diretivas ficam no contexto http (sites-enabled já é incluído dentro
 # dele nas distribuições Debian/Ubuntu).
-limit_req_zone $binary_remote_addr zone=whatscarretao_requests:10m rate=30r/s;
-limit_conn_zone $binary_remote_addr zone=whatscarretao_connections:10m;
+limit_req_zone $binary_remote_addr zone=whatsa_requests:10m rate=30r/s;
+limit_conn_zone $binary_remote_addr zone=whatsa_connections:10m;
 map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
@@ -44,11 +46,11 @@ server {
 
     # Segunda barreira contra rajadas/Slowloris; a aplicação mantém também os
     # limites por conta, login e socket.
-    limit_conn whatscarretao_connections 50;
-    limit_req zone=whatscarretao_requests burst=120 nodelay;
+    limit_conn whatsa_connections 50;
+    limit_req zone=whatsa_requests burst=120 nodelay;
 
     location / {
-        proxy_pass http://127.0.0.1:3100;
+        proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
@@ -62,6 +64,6 @@ server {
         proxy_connect_timeout 10s;
     }
 
-    access_log /var/log/nginx/whatscarretao-access.log;
-    error_log  /var/log/nginx/whatscarretao-error.log;
+    access_log /var/log/nginx/whatsa-ai-access.log;
+    error_log  /var/log/nginx/whatsa-ai-error.log;
 }

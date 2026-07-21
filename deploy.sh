@@ -9,7 +9,7 @@ umask 077
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-DEPLOY_APP_NAME="whatscarretao"
+DEPLOY_APP_NAME="whatsa-ai"
 ENV_FILE="${ENV_FILE:-.env}"
 
 die() {
@@ -71,19 +71,15 @@ MIN_FREE_DISK_MB="${MIN_FREE_DISK_MB:-4096}"
 BACKUP_FREE_MARGIN_MB="${BACKUP_FREE_MARGIN_MB:-2048}"
 BACKUP_RETENTION="${BACKUP_RETENTION:-4}"
 DEPLOY_STOP_TIMEOUT="${DEPLOY_STOP_TIMEOUT:-120}"
-MEMORY_LIMIT="${MEMORY_LIMIT:-4g}"
-CPU_LIMIT="${CPU_LIMIT:-2.0}"
-WA_MAX_CONCURRENT_SESSIONS="${WA_MAX_CONCURRENT_SESSIONS:-1}"
+MEMORY_LIMIT="${MEMORY_LIMIT:-6g}"
+CPU_LIMIT="${CPU_LIMIT:-3.0}"
+WA_MAX_CONCURRENT_SESSIONS="${WA_MAX_CONCURRENT_SESSIONS:-5}"
 export BACKUP_RETENTION DEPLOY_STOP_TIMEOUT MEMORY_LIMIT CPU_LIMIT WA_MAX_CONCURRENT_SESSIONS
 
 export APP_UID="${APP_UID:-$(id -u)}"
 export APP_GID="${APP_GID:-$(id -g)}"
 [[ "$APP_UID" == "$(id -u)" ]] || die "APP_UID deve ser o UID do usuário de serviço para os bind mounts"
 [[ "$APP_GID" == "$(id -g)" ]] || die "APP_GID deve ser o GID do usuário de serviço para os bind mounts"
-
-export APP_MODE=internal
-export INTERNAL_SINGLE_TENANT=true
-export BILLING_REQUIRED=false
 
 node scripts/validate-production-env.js
 node scripts/validate-host-capacity.js
@@ -98,12 +94,15 @@ AVAILABLE_DISK_KB="$(df -Pk "$ROOT_DIR" | awk 'NR == 2 { print $4 }')"
   || die "espaço livre insuficiente; são necessários ao menos ${MIN_FREE_DISK_MB} MiB"
 
 export NODE_ENV=production
+export BILLING_REQUIRED=true
+export TRIAL_DAYS=3
 export WA_BROWSER_MODE=isolated
 # Preferimos manter o sandbox do Chromium ligado; alguns hosts restringem
 # namespaces de usuário e o operador precisa desligá-lo via .env (ver runbook).
 export WA_NO_SANDBOX="${WA_NO_SANDBOX:-false}"
-export APP_IMAGE="${APP_IMAGE:-whatscarretao:local}"
+export APP_IMAGE="${APP_IMAGE:-whatsa-ai:local}"
 export DOMAIN JWT_SECRET CORS_ORIGIN APP_URL ADMIN_USERNAME ADMIN_PASSWORD
+export STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_PRICE_ID_BASIC STRIPE_PRICE_ID_PRO
 export APP_UID APP_GID
 
 echo "==> Preparando diretórios persistentes..."
@@ -145,10 +144,10 @@ NODE
   return 1
 }
 
-CURRENT_CONTAINER_ID="$(docker compose ps -q "$DEPLOY_APP_NAME" 2>/dev/null || true)"
+CURRENT_CONTAINER_ID="$(docker compose ps -q whatsa-ai 2>/dev/null || true)"
 PREVIOUS_IMAGE_ID=""
-ROLLBACK_IMAGE="whatscarretao:rollback-$(date -u +%Y%m%dT%H%M%SZ)"
-CANDIDATE_IMAGE="whatscarretao:candidate-$(date -u +%Y%m%dT%H%M%SZ)"
+ROLLBACK_IMAGE="whatsa-ai:rollback-$(date -u +%Y%m%dT%H%M%SZ)"
+CANDIDATE_IMAGE="whatsa-ai:candidate-$(date -u +%Y%m%dT%H%M%SZ)"
 PREVIOUS_STABLE_IMAGE="${DEPLOY_APP_NAME}:previous"
 CURRENT_WAS_RUNNING=false
 POST_STOP_UNVALIDATED=false
@@ -159,7 +158,7 @@ if [[ -n "$CURRENT_CONTAINER_ID" ]]; then
   echo "==> Imagem atual preservada para rollback."
   if [[ "$(docker inspect --format '{{.State.Running}}' "$CURRENT_CONTAINER_ID")" == "true" ]]; then
     CURRENT_WAS_RUNNING=true
-    smoke_test "${LOCAL_SMOKE_URL:-http://127.0.0.1:3100/health/ready}" "versao atual antes do deploy" \
+    smoke_test "${LOCAL_SMOKE_URL:-http://127.0.0.1:3000/health/ready}" "versao atual antes do deploy" \
       || die "a versao atual nao esta pronta; deploy abortado sem interrompe-la"
   fi
 fi
@@ -172,13 +171,13 @@ rollback() {
     echo "==> Restaurando imagem anterior..." >&2
     if ! docker image tag "$ROLLBACK_IMAGE" "$APP_IMAGE"; then
       echo "ERRO: não foi possível recuperar a tag da imagem anterior; candidato será parado" >&2
-      docker compose stop "$DEPLOY_APP_NAME" >/dev/null 2>&1 || true
-    elif ! docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans "$DEPLOY_APP_NAME"; then
+      docker compose stop whatsa-ai >/dev/null 2>&1 || true
+    elif ! docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans whatsa-ai; then
       echo "ERRO: rollback automático da imagem também falhou; intervenção manual necessária" >&2
     fi
   else
     echo "ERRO: não há imagem anterior disponível para rollback automático" >&2
-    docker compose stop "$DEPLOY_APP_NAME" >/dev/null 2>&1 || true
+    docker compose stop whatsa-ai >/dev/null 2>&1 || true
   fi
   docker compose ps >&2 || true
   exit 1
@@ -196,13 +195,13 @@ emergency_recover_on_exit() {
     set +e
     if [[ -n "$PREVIOUS_IMAGE_ID" ]]; then
       if docker image tag "$ROLLBACK_IMAGE" "$APP_IMAGE"; then
-        docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans "$DEPLOY_APP_NAME"
+        docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans whatsa-ai
       else
         echo "ERRO: imagem anterior indisponível para recuperação de emergência" >&2
-        docker compose stop "$DEPLOY_APP_NAME" >/dev/null 2>&1
+        docker compose stop whatsa-ai >/dev/null 2>&1
       fi
     else
-      docker compose stop "$DEPLOY_APP_NAME" >/dev/null 2>&1
+      docker compose stop whatsa-ai >/dev/null 2>&1
     fi
   fi
   exit "$status"
@@ -210,7 +209,7 @@ emergency_recover_on_exit() {
 trap emergency_recover_on_exit EXIT
 
 echo "==> Construindo a nova imagem enquanto a versão atual permanece ativa..."
-docker compose build --pull "$DEPLOY_APP_NAME"
+docker compose build --pull whatsa-ai
 CANDIDATE_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$APP_IMAGE")"
 docker image tag "$CANDIDATE_IMAGE_ID" "$CANDIDATE_IMAGE"
 echo "==> Validando a imagem candidata sem rede e sem montar dados reais..."
@@ -241,7 +240,7 @@ docker run --rm --network none --read-only --tmpfs /tmp:size=256m \
 if [[ "$CURRENT_WAS_RUNNING" == "true" ]]; then
   echo "==> Parando a versão atual graciosamente para o snapshot global..."
   POST_STOP_UNVALIDATED=true
-  if ! docker compose stop --timeout "$DEPLOY_STOP_TIMEOUT" "$DEPLOY_APP_NAME"; then
+  if ! docker compose stop --timeout "$DEPLOY_STOP_TIMEOUT" whatsa-ai; then
     rollback "falha ao solicitar a parada graciosa do container atual"
   fi
   [[ "$(docker inspect --format '{{.State.Running}}' "$CURRENT_CONTAINER_ID")" == "false" ]] \
@@ -272,17 +271,17 @@ if ! npm run --silent backup:verify -- "$ROOT_DIR/backups/$BACKUP_NAME"; then
 fi
 
 echo "==> Aplicando a nova imagem e aguardando /health/ready..."
-if ! docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans "$DEPLOY_APP_NAME"; then
+if ! docker compose up -d --force-recreate --wait --wait-timeout "$DEPLOY_WAIT_TIMEOUT" --remove-orphans whatsa-ai; then
   rollback "a nova versão não ficou pronta dentro do prazo"
 fi
 
-smoke_test "${LOCAL_SMOKE_URL:-http://127.0.0.1:3100/health/ready}" "readiness local" \
+smoke_test "${LOCAL_SMOKE_URL:-http://127.0.0.1:3000/health/ready}" "readiness local" \
   || rollback "smoke test local falhou"
 smoke_test "${PUBLIC_SMOKE_URL:-${APP_URL%/}/health/ready}" "readiness pública" \
   || rollback "smoke test público falhou"
 
 echo "==> Auditando integridade e isolamento dos dados após as migrações..."
-docker compose exec -T "$DEPLOY_APP_NAME" npm run --silent integrity:audit \
+docker compose exec -T whatsa-ai npm run --silent integrity:audit \
   || rollback "auditoria de integridade dos dados falhou"
 POST_STOP_UNVALIDATED=false
 

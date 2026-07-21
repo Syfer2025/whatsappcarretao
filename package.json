@@ -1,8 +1,7 @@
 {
-  "name": "whatscarretao",
+  "name": "whatsa-ai",
   "version": "1.0.0",
-  "description": "Atendimento interno via WhatsApp da Auto Peças Carretão",
-  "private": true,
+  "description": "",
   "main": "server.js",
   "scripts": {
     "test": "node scripts/run-tests.js",
@@ -18,12 +17,7 @@
     "start": "node server.js",
     "dev": "nodemon --config nodemon.json server.js"
   },
-  "keywords": [
-    "whatsapp",
-    "atendimento",
-    "interno",
-    "carretao"
-  ],
+  "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",

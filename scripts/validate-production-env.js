@@ -18,14 +18,6 @@ function isPositiveInteger(value) {
 
 function validateProductionEnv(env = process.env) {
   const errors = [];
-  const appMode = valueOf(env, 'APP_MODE', 'commercial').toLowerCase();
-  const internalMode = appMode === 'internal';
-  if (!['commercial', 'internal'].includes(appMode)) {
-    errors.push('APP_MODE deve ser commercial ou internal');
-  }
-  if (internalMode && valueOf(env, 'INTERNAL_SINGLE_TENANT').toLowerCase() !== 'true') {
-    errors.push('INTERNAL_SINGLE_TENANT deve ser true no modo internal');
-  }
   const required = [
     'DOMAIN',
     'APP_URL',
@@ -76,56 +68,54 @@ function validateProductionEnv(env = process.env) {
     }
   }
 
-  if (!internalMode) {
-    const stripeSecret = valueOf(env, 'STRIPE_SECRET_KEY');
-    const stripeWebhookSecret = valueOf(env, 'STRIPE_WEBHOOK_SECRET');
-    if (stripeSecret && !/^sk_live_[A-Za-z0-9]+$/.test(stripeSecret)) {
-      errors.push('STRIPE_SECRET_KEY deve ser uma chave de produção iniciada por sk_live_');
-    }
-    if (stripeWebhookSecret && !/^whsec_[A-Za-z0-9]+$/.test(stripeWebhookSecret)) {
-      errors.push('STRIPE_WEBHOOK_SECRET deve começar com whsec_');
-    }
+  const stripeSecret = valueOf(env, 'STRIPE_SECRET_KEY');
+  const stripeWebhookSecret = valueOf(env, 'STRIPE_WEBHOOK_SECRET');
+  if (stripeSecret && !/^sk_live_[A-Za-z0-9]+$/.test(stripeSecret)) {
+    errors.push('STRIPE_SECRET_KEY deve ser uma chave de produção iniciada por sk_live_');
+  }
+  if (stripeWebhookSecret && !/^whsec_[A-Za-z0-9]+$/.test(stripeWebhookSecret)) {
+    errors.push('STRIPE_WEBHOOK_SECRET deve começar com whsec_');
+  }
 
-    const turnstileValues = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']
-      .map(name => [name, valueOf(env, name)]);
-    const turnstileHasPlaceholder = turnstileValues.some(([name, value]) => {
-      if (!value || !PLACEHOLDER_PATTERN.test(value)) return false;
-      errors.push(`${name} ainda contém um placeholder`);
-      return true;
-    });
-    if (!turnstileHasPlaceholder) {
-      const turnstileStatus = getTurnstileConfigurationStatus(env, { production: true });
-      const messages = {
-        partial_configuration: 'TURNSTILE_SITE_KEY e TURNSTILE_SECRET_KEY devem ser configuradas juntas',
-        invalid_key: 'TURNSTILE_SITE_KEY e TURNSTILE_SECRET_KEY devem ser chaves Turnstile validas',
-        test_key_in_production: 'TURNSTILE_SITE_KEY nao pode usar uma chave de teste em produção'
-      };
-      if (!turnstileStatus.configured && turnstileStatus.reason !== 'disabled') {
-        errors.push(messages[turnstileStatus.reason] || 'configuração Turnstile invalida');
-      }
+  const turnstileValues = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']
+    .map(name => [name, valueOf(env, name)]);
+  const turnstileHasPlaceholder = turnstileValues.some(([name, value]) => {
+    if (!value || !PLACEHOLDER_PATTERN.test(value)) return false;
+    errors.push(`${name} ainda contém um placeholder`);
+    return true;
+  });
+  if (!turnstileHasPlaceholder) {
+    const turnstileStatus = getTurnstileConfigurationStatus(env, { production: true });
+    const messages = {
+      partial_configuration: 'TURNSTILE_SITE_KEY e TURNSTILE_SECRET_KEY devem ser configuradas juntas',
+      invalid_key: 'TURNSTILE_SITE_KEY e TURNSTILE_SECRET_KEY devem ser chaves Turnstile validas',
+      test_key_in_production: 'TURNSTILE_SITE_KEY nao pode usar uma chave de teste em produção'
+    };
+    if (!turnstileStatus.configured && turnstileStatus.reason !== 'disabled') {
+      errors.push(messages[turnstileStatus.reason] || 'configuração Turnstile invalida');
     }
+  }
 
-    const fallbackPrice = valueOf(env, 'STRIPE_PRICE_ID');
-    const basicPrice = valueOf(env, 'STRIPE_PRICE_ID_BASIC');
-    const proPrice = valueOf(env, 'STRIPE_PRICE_ID_PRO');
-    const configuredPrices = [
-      ['STRIPE_PRICE_ID', fallbackPrice],
-      ['STRIPE_PRICE_ID_BASIC', basicPrice],
-      ['STRIPE_PRICE_ID_PRO', proPrice],
-    ];
-    for (const [name, value] of configuredPrices) {
-      if (!value) continue;
-      if (PLACEHOLDER_PATTERN.test(value)) errors.push(`${name} ainda contém um placeholder`);
-      else if (!/^price_[A-Za-z0-9]+$/.test(value)) errors.push(`${name} deve começar com price_`);
-    }
-    // No modo comercial, valores fornecidos por ambiente continuam sujeitos a
-    // validação de formato e coerência, ainda que possam vir do painel.
-    if (fallbackPrice && (basicPrice || proPrice)) {
-      errors.push('configure STRIPE_PRICE_ID sozinho OU BASIC/PRO, sem misturar os modos');
-    }
-    if (basicPrice && proPrice && basicPrice === proPrice) {
-      errors.push('STRIPE_PRICE_ID_BASIC e STRIPE_PRICE_ID_PRO devem ser diferentes');
-    }
+  const fallbackPrice = valueOf(env, 'STRIPE_PRICE_ID');
+  const basicPrice = valueOf(env, 'STRIPE_PRICE_ID_BASIC');
+  const proPrice = valueOf(env, 'STRIPE_PRICE_ID_PRO');
+  const configuredPrices = [
+    ['STRIPE_PRICE_ID', fallbackPrice],
+    ['STRIPE_PRICE_ID_BASIC', basicPrice],
+    ['STRIPE_PRICE_ID_PRO', proPrice],
+  ];
+  for (const [name, value] of configuredPrices) {
+    if (!value) continue;
+    if (PLACEHOLDER_PATTERN.test(value)) errors.push(`${name} ainda contém um placeholder`);
+    else if (!/^price_[A-Za-z0-9]+$/.test(value)) errors.push(`${name} deve começar com price_`);
+  }
+  // Os price ids passaram a ser configurados pelo painel; não são exigidos no
+  // ambiente. Se fornecidos por env, ainda validamos formato e coerência abaixo.
+  if (fallbackPrice && (basicPrice || proPrice)) {
+    errors.push('configure STRIPE_PRICE_ID sozinho OU BASIC/PRO, sem misturar os modos');
+  }
+  if (basicPrice && proPrice && basicPrice === proPrice) {
+    errors.push('STRIPE_PRICE_ID_BASIC e STRIPE_PRICE_ID_PRO devem ser diferentes');
   }
 
   const domain = valueOf(env, 'DOMAIN').toLowerCase();
@@ -174,17 +164,16 @@ function validateProductionEnv(env = process.env) {
     errors.push('CORS_ORIGIN deve ser exatamente a origem de APP_URL');
   }
 
-  if (!internalMode) {
-    const checkoutReservationMinutes = valueOf(env, 'STRIPE_CHECKOUT_RESERVATION_MINUTES', '30');
-    if (
-      !/^\d+$/.test(checkoutReservationMinutes) ||
-      Number(checkoutReservationMinutes) < 30 ||
-      Number(checkoutReservationMinutes) > 1440
-    ) {
-      errors.push('STRIPE_CHECKOUT_RESERVATION_MINUTES deve ser um inteiro entre 30 e 1440');
-    }
-    if (valueOf(env, 'TRIAL_DAYS', '3') !== '3') errors.push('TRIAL_DAYS deve ser exatamente 3');
+  const checkoutReservationMinutes = valueOf(env, 'STRIPE_CHECKOUT_RESERVATION_MINUTES', '30');
+  if (
+    !/^\d+$/.test(checkoutReservationMinutes) ||
+    Number(checkoutReservationMinutes) < 30 ||
+    Number(checkoutReservationMinutes) > 1440
+  ) {
+    errors.push('STRIPE_CHECKOUT_RESERVATION_MINUTES deve ser um inteiro entre 30 e 1440');
   }
+
+  if (valueOf(env, 'TRIAL_DAYS', '3') !== '3') errors.push('TRIAL_DAYS deve ser exatamente 3');
   if (valueOf(env, 'WA_BROWSER_MODE', 'isolated') !== 'isolated') {
     errors.push('WA_BROWSER_MODE deve ser isolated');
   }
@@ -208,11 +197,8 @@ function validateProductionEnv(env = process.env) {
   if (valueOf(env, 'FFMPEG_PATH', '/usr/bin/ffmpeg') !== '/usr/bin/ffmpeg') {
     errors.push('FFMPEG_PATH deve apontar para /usr/bin/ffmpeg na imagem oficial');
   }
-  const billingRequired = valueOf(env, 'BILLING_REQUIRED', internalMode ? 'false' : 'true').toLowerCase();
-  if (internalMode && billingRequired !== 'false') {
-    errors.push('BILLING_REQUIRED deve ser false no modo internal');
-  } else if (!internalMode && billingRequired !== 'true') {
-    errors.push('BILLING_REQUIRED deve ser true no modo commercial');
+  if (valueOf(env, 'BILLING_REQUIRED', 'true').toLowerCase() !== 'true') {
+    errors.push('BILLING_REQUIRED deve ser true em produção');
   }
   if (valueOf(env, 'COOKIE_SECURE', 'true').toLowerCase() !== 'true') {
     errors.push('COOKIE_SECURE deve ser true em produção');
@@ -289,20 +275,6 @@ function validateProductionEnv(env = process.env) {
   ]) {
     const value = valueOf(env, name);
     if (value && !isPositiveInteger(value)) errors.push(`${name} deve ser um inteiro positivo`);
-  }
-
-  if (internalMode && valueOf(env, 'WA_MAX_CONCURRENT_SESSIONS', '1') !== '1') {
-    errors.push('WA_MAX_CONCURRENT_SESSIONS deve ser 1 no modo internal');
-  }
-  if (internalMode) {
-    const internalAgentLimit = valueOf(env, 'INTERNAL_AGENT_LIMIT', '100');
-    if (!isPositiveInteger(internalAgentLimit) || Number(internalAgentLimit) > 10000) {
-      errors.push('INTERNAL_AGENT_LIMIT deve ser um inteiro entre 1 e 10000');
-    }
-    const internalAdminName = valueOf(env, 'INTERNAL_ADMIN_NAME', 'Super Admin');
-    if (!internalAdminName || internalAdminName.length > 160 || /\p{Cc}/u.test(internalAdminName)) {
-      errors.push('INTERNAL_ADMIN_NAME invalido');
-    }
   }
 
   const numericValue = (name, fallback) => {

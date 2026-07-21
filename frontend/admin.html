@@ -7,8 +7,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Super Admin | WhatsCarretao</title>
-<link rel="icon" type="image/svg+xml" href="/assets/carretao-mark.svg">
+<title>Admin - Atendimento WhatsApp</title>
 <style>
 :root {
   --accent: #25d366;
@@ -453,7 +452,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
 [data-theme="dark"] .attachment-link { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.08); color: var(--text-main); }
 [data-theme="dark"] .attachment-link:hover { background: rgba(255,255,255,0.14); }
 
-/* Tabelas de acompanhamento */
+/* Tabelas (financeiro etc.) */
 [data-theme="dark"] th { background: #202c33; color: var(--text-muted); border-bottom-color: var(--border); }
 [data-theme="dark"] td { border-top-color: var(--border); color: var(--text-main); }
 
@@ -471,7 +470,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.26); }
 [data-theme="dark"] .conv-list::-webkit-scrollbar-thumb { background: #2a3942; }
 
-/* Abas "Agentes" e "Setores": o markup é gerado por JS com estilo inline.
+/* Abas "Usuários" e "Setores": o markup é gerado por JS com estilo inline.
    Só aqui usamos !important — é o único jeito de vencer o atributo style="",
    e o escopo fica restrito a esses dois contêineres. */
 [data-theme="dark"] #tabUsers .panel,
@@ -522,71 +521,18 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
 <link rel="stylesheet" href="/chat-shell.css">
 <link rel="stylesheet" href="/chat-audio-player.css">
 
-<style>
-.chat-app .brand-lockup {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-}
-.chat-app .brand-lockup img {
-  display: block;
-  width: min(136px, 100%);
-  height: auto;
-}
-.chat-app .brand-copy {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  max-width: 142px;
-}
-.chat-app .brand-text {
-  overflow: hidden;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-}
-.chat-app .brand-role {
-  color: #94a3b8;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.chat-app .brand-company {
-  overflow: hidden;
-  max-width: 142px;
-  color: #64748b;
-  font-size: 8.5px;
-  font-weight: 650;
-  letter-spacing: .02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chat-app .app-nav.collapsed .brand-lockup { display: none; }
-@media (max-width: 1180px) {
-  .chat-app .brand-lockup { display: none; }
-}
-</style>
-
 </head>
 <body class="chat-app app-shell chat-app-admin">
 <div id="toastContainer" class="toast-container"></div>
 <div class="app-nav">
   <div class="app-nav-brand" id="brandLogo">
-    <span class="brand-lockup" aria-label="WhatsCarretao, Auto Peças Carretão, Super Admin">
-      <img src="/assets/carretao-wordmark.svg" alt="Auto Peças Carretão" width="1577" height="239">
-      <span class="brand-copy"><span class="brand-text">WhatsCarretao</span><span class="brand-role">Super Admin</span></span>
-      <span class="brand-company">Auto Peças Carretão</span>
-    </span>
+    <span class="brand-text">WhatsApp AI</span>
     <button class="app-nav-toggle" type="button" data-chat-nav-toggle title="Ocultar menu" aria-label="Mostrar ou ocultar menu">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </button>
   </div>
   <div class="app-nav-status" id="statusWpp" data-tooltip="🟢 Verde: Conectado e operando.\n🟠 Laranja: Carregando, aguardando QR Code ou sem rede."><span class="dot" id="statusDot"></span><span id="statusWppText">Conectando...</span></div>
-  <nav class="app-nav-items" aria-label="Navegação do Super Admin">
+  <nav class="app-nav-items">
     <div class="app-nav-item active" data-section="atendimento" onclick="switchSection('atendimento')" title="Atendimento">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
       <span class="nav-text">Atendimento</span>
@@ -595,9 +541,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/></svg>
       <span class="nav-text">Estatísticas</span>
     </div>
-    <div class="app-nav-item" data-section="users" onclick="switchSection('users')" title="Agentes">
+    <div class="app-nav-item" data-section="users" onclick="switchSection('users')" title="Usuários">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span class="nav-text">Agentes</span>
+      <span class="nav-text">Usuarios</span>
     </div>
     <div class="app-nav-item" data-section="sectors" onclick="switchSection('sectors')" title="Setores">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -607,8 +553,17 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/></svg>
       <span class="nav-text">Conexao</span>
     </div>
+    <div class="app-nav-item" data-section="financeiro" onclick="switchSection('financeiro')" title="Financeiro">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      <span class="nav-text">Financeiro</span>
+    </div>
   </nav>
   <div class="app-nav-footer">
+    <button class="help-btn" onclick="openHelpModal()" title="Precisa de ajuda?">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span class="btn-text">Precisa de ajuda?</span>
+      <span class="help-badge" hidden></span>
+    </button>
     <button class="theme-toggle-btn" data-theme-toggle type="button" title="Alternar tema claro/escuro">
       <svg class="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
       <span class="btn-text" id="themeBtnText">Modo Escuro</span>
@@ -768,13 +723,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
   </div>
 
   <div id="sectionUsers" class="app-page">
-    <div class="page-header"><h2>Agentes</h2></div>
+    <div class="page-header"><h2>Usuarios</h2></div>
     <div class="page-body" id="tabUsers"></div>
   </div>
 
   <div id="sectionStatistics" class="app-page">
     <div class="page-header">
-      <div><h2>Acompanhamento</h2><p style="margin-top:4px;color:var(--text-muted);font-size:13px">Equipe online, atendimentos e desempenho por atendente e setor.</p></div>
+      <div><h2>Acompanhamento</h2><p style="margin-top:4px;color:var(--text-muted);font-size:13px">Equipe online, atendimentos e desempenho por vendedor e setor.</p></div>
       <div class="stats-controls">
         <label for="statisticsDays" style="font-size:12px;color:var(--text-muted)">Período</label>
         <select id="statisticsDays" onchange="loadStatistics()">
@@ -798,6 +753,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
     <div class="page-body" id="tabConnection"></div>
   </div>
 
+  <div id="sectionFinanceiro" class="app-page">
+    <div class="page-header"><h2>Financeiro</h2></div>
+    <div class="page-body" id="tabFinanceiro"></div>
+  </div>
 </div>
 
 <div id="forwardMessageModal" class="chat-action-modal" role="presentation" onclick="if(event.target===this) closeForwardMessagePicker()">
@@ -812,11 +771,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
 
 <div class="modal" id="vendorModal">
   <div class="modal-content">
-    <h3 id="userModalTitle">Novo Agente</h3>
+    <h3 id="userModalTitle">Novo Usuario</h3>
     <input id="vId" type="hidden">
     <input id="vVersion" type="hidden">
     <label>Nome</label> <input id="vName" maxlength="120" autocomplete="name">
-    <label>Usuário do agente</label> <input id="vUser" maxlength="160" autocapitalize="none" spellcheck="false" autocomplete="off">
+    <label>Usuário</label> <input id="vUser" maxlength="160" autocapitalize="none" spellcheck="false" autocomplete="off">
     <label>Senha</label> <input id="vPass" type="password" minlength="10" autocomplete="new-password" placeholder="10 a 72 bytes; opcional ao editar">
     <label>Departamento</label> <select id="vSector" onchange="refreshUserActivationAvailability()"><option value="">Selecione um departamento</option></select>
     <label><input id="vActive" type="checkbox" checked style="width:auto;margin-right:6px"> Ativo</label>
@@ -847,9 +806,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: var(--surfac
 <script src="/chat-notifications.js?v=2"></script>
 <script src="/chat-directory.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/support-widget.js"></script>
 <script src="/sticker-library.js"></script>
 <script>
 const socket = io();
+window.SupportWidget?.attachSocket(socket);
 socket.on('auth:session-replaced', () => {
   window.ChatNotifications?.clear();
   window.location.replace('/login.html?session=replaced');
@@ -905,6 +866,7 @@ let conversationRefreshTimer = null;
 let messageRefreshTimer = null;
 let statisticsRefreshTimer = null;
 let usersRefreshTimer = null;
+let billingRefreshTimers = [];
 let statisticsLoadSeq = 0;
 let statisticsAbortController = null;
 let usersLoadSeq = 0;
@@ -992,27 +954,50 @@ async function init() {
     window.location.href = '/superadmin.html';
     return { operational: false };
   }
+  const billing = await api('/api/billing/status').then(async response => (
+    response.ok ? response.json() : { billing_status: 'suspended' }
+  ));
   try {
     const b = await api('/api/branding').then(r => r.json());
     if (b.appName) {
-      document.title = `Super Admin - ${b.appName}`;
+      document.title = `Admin - ${b.appName}`;
       const el = document.querySelector('#brandLogo .brand-text');
       if (el) el.textContent = b.appName;
     }
   } catch {}
 
   const params = new URLSearchParams(window.location.search);
-  if (['statistics', 'connection', 'sectors', 'users'].includes(params.get('tab'))) {
+  const billingRestricted = !['active', 'trialing'].includes(billing.billing_status);
+  if (params.get('tab') === 'financeiro' || billingRestricted) {
+    switchSection('financeiro');
+    if (params.get('billing') === 'success') {
+      showToast('Pagamento confirmado! Pode levar alguns segundos para atualizar.');
+      scheduleBillingRefreshes();
+    }
+    if (params.get('billing') === 'cancelled') showToast('Pagamento cancelado.');
+    if (params.get('billing') === 'required') showToast('Seu acesso está pausado. Regularize a assinatura para continuar.');
+    if (billingRestricted && !params.get('billing')) showToast('Regularize a assinatura para liberar o atendimento.');
+    window.history.replaceState({}, '', '/admin.html');
+  } else if (['statistics', 'connection', 'sectors', 'users'].includes(params.get('tab'))) {
     switchSection(params.get('tab'));
     window.history.replaceState({}, '', '/admin.html');
   }
-  return { operational: true };
+  return { operational: !billingRestricted };
 }
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[char]));
+}
+
+function safeHttpsUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    return parsed.protocol === 'https:' ? parsed.href : '';
+  } catch {
+    return '';
+  }
 }
 
 function showToast(message, type = 'error') {
@@ -1242,7 +1227,7 @@ function renderQuotedMessage(m) {
     ? [m.quoted_participant_name || m.quoted_sender_name, quotedParticipantPhone].filter(Boolean).join(' · ')
     : null;
   const quotedFrom = escapeHtml(quotedParticipant || (m.quoted_from_type === 'vendor'
-    ? (m.quoted_sender_name || 'Atendente')
+    ? (m.quoted_sender_name || 'Vendedor')
     : 'Cliente'));
   let preview = '';
   if (m.quoted_content) {
@@ -1977,7 +1962,7 @@ async function ensureMessageTargetVisible(messageId) {
     loadedMessagesFilter = activeMediaFilter;
     const list = document.getElementById('messagesList');
     cancelActiveMediaAnchor();
-    list.innerHTML = renderMessageList(loadedMessages, 'Atendente');
+    list.innerHTML = renderMessageList(loadedMessages, 'Vendedor');
     lastRenderedMessageSignature = messagesSignature(loadedMessages);
     if (highlightMessage(messageId)) return true;
   }
@@ -1995,7 +1980,7 @@ async function ensureMessageTargetVisible(messageId) {
   loadedMessagesFilter = activeMediaFilter;
   const list = document.getElementById('messagesList');
   cancelActiveMediaAnchor();
-  list.innerHTML = renderMessageList(loadedMessages, 'Atendente');
+  list.innerHTML = renderMessageList(loadedMessages, 'Vendedor');
   lastRenderedMessageSignature = messagesSignature(loadedMessages);
   return highlightMessage(messageId);
 }
@@ -2119,7 +2104,7 @@ async function loadOlderMessages() {
     loadedMessagesFilter = filter;
     oldestLoadedMessageId = loadedMessages[0]?.id || null;
     cancelActiveMediaAnchor();
-    list.innerHTML = renderMessageList(loadedMessages, 'Atendente');
+    list.innerHTML = renderMessageList(loadedMessages, 'Vendedor');
     setMessageScrollTopImmediately(list, previousScrollTop + (list.scrollHeight - previousHeight));
     lastRenderedConversationId = conversationId;
     lastRenderedMessageSignature = messagesSignature(loadedMessages);
@@ -2222,7 +2207,7 @@ function renderSearchResults(data) {
       <div class="conv-details">
         <div class="name conv-title"><span>${escapeHtml(displayName(c))}</span>${renderUnreadBadge(c)}</div>
         <div class="preview">${escapeHtml(c.phone || '')}</div>
-        <div class="meta">${escapeHtml(c.vendor_name || 'sem atendente')}</div>
+        <div class="meta">${escapeHtml(c.vendor_name || 'sem usuario')}</div>
       </div>
       ${conversationStateActions(c)}
     </div>`).join('');
@@ -2290,7 +2275,7 @@ function applyTypingStatus(event) {
   if (Number(event.conversationId) !== Number(currentConvId)) return;
   if (currentUser && event.role === currentUser.role && Number(event.userId) === Number(currentUser.id)) return;
   const el = document.getElementById('typingStatus');
-  el.textContent = event.typing ? `${event.name || 'Atendente'} digitando...` : '';
+  el.textContent = event.typing ? `${event.name || 'Usuário'} digitando...` : '';
   clearTimeout(typingClearTimer);
   if (event.typing) typingClearTimer = setTimeout(() => { el.textContent = ''; }, 3500);
 }
@@ -2424,7 +2409,7 @@ async function loadConversations({
 
     list.innerHTML = convs.map(c => {
     const statusClass = c.status === 'unassigned' ? 'badge-unassigned' : c.status === 'active' ? 'badge-active' : 'badge-closed';
-    const assignment = c.vendor_name ? c.vendor_name : 'sem atendente';
+    const assignment = c.vendor_name ? c.vendor_name : 'sem usuario';
     const sector = c.sector_name ? ` · ${c.sector_name}` : '';
     return `<div class="conv-item ${c.id === currentConvId ? 'active' : ''}" onclick="selectConv(${c.id})">
       ${renderAvatar(c)}
@@ -2578,7 +2563,7 @@ async function loadMessages(id, { force = false, preserveScroll = false } = {}) 
   oldestLoadedMessageId = loadedMessages[0]?.id || null;
   const shouldAnchorAfterMedia = shouldScrollToBottom && !pendingHighlightMessageId;
   cancelActiveMediaAnchor();
-  list.innerHTML = renderMessageList(loadedMessages, 'Atendente');
+  list.innerHTML = renderMessageList(loadedMessages, 'Vendedor');
   lastRenderedConversationId = id;
   lastRenderedMessageSignature = signature;
   if (shouldScrollToBottom) setMessageScrollTopImmediately(list, list.scrollHeight);
@@ -2939,7 +2924,7 @@ function renderStatistics(data) {
   const summary = data.summary || {};
   const cards = [
     ['Equipe online agora', statisticNumber(summary.online_users)],
-    ['Atendentes online', statisticNumber(summary.online_vendors)],
+    ['Vendedores online', statisticNumber(summary.online_vendors)],
     ['Pessoas atendidas', statisticNumber(summary.attended_contacts)],
     ['Mensagens enviadas', statisticNumber(summary.messages_sent)],
     ['Mensagens recebidas', statisticNumber(summary.messages_received)],
@@ -2954,7 +2939,7 @@ function renderStatistics(data) {
         : (admin.last_seen_at ? `Visto ${escapeHtml(formatDateTime(admin.last_seen_at))}` : 'Offline')}</td>
       <td>${admin.last_login_at ? escapeHtml(formatDateTime(admin.last_login_at)) : 'Ainda não acessou'}</td>
     </tr>
-  `).join('') || '<tr><td colspan="3">Super Admin ainda não acessou.</td></tr>';
+  `).join('') || '<tr><td colspan="3">Nenhum administrador da empresa.</td></tr>';
   const vendorRows = (data.vendors || []).map(vendor => `
     <tr>
       <td><span class="presence-dot ${vendor.online ? 'online' : ''}"></span>${escapeHtml(vendor.name)}${Number(vendor.active) !== 1 ? ' · Inativo' : ''}</td>
@@ -2966,7 +2951,7 @@ function renderStatistics(data) {
       <td>${statisticNumber(vendor.messages_sent)}</td>
       <td>${statisticNumber(vendor.assigned_open)}</td>
     </tr>
-  `).join('') || '<tr><td colspan="6">Nenhum atendente cadastrado.</td></tr>';
+  `).join('') || '<tr><td colspan="6">Nenhum vendedor cadastrado.</td></tr>';
   const sectorRows = (data.sectors || []).map(sector => `
     <tr>
       <td>${escapeHtml(sector.name)}</td>
@@ -2980,16 +2965,16 @@ function renderStatistics(data) {
   target.innerHTML = `
     <div class="stats-grid">${cards.map(([label, value]) => `<div class="stats-card"><strong>${value}</strong><span>${label}</span></div>`).join('')}</div>
     <div class="stats-table-wrap">
-      <h3 style="margin:4px 0 12px">Super Admin</h3>
-      <table class="stats-table"><thead><tr><th>Super Admin</th><th>Presença</th><th>Último login</th></tr></thead><tbody>${adminRows}</tbody></table>
+      <h3 style="margin:4px 0 12px">Administradores</h3>
+      <table class="stats-table"><thead><tr><th>Administrador</th><th>Presença</th><th>Último login</th></tr></thead><tbody>${adminRows}</tbody></table>
     </div>
     <div class="stats-table-wrap">
-      <h3 style="margin:4px 0 12px">Por atendente</h3>
-      <table class="stats-table"><thead><tr><th>Atendente</th><th>Setor</th><th>Presença</th><th>Pessoas atendidas</th><th>Mensagens</th><th>Em aberto</th></tr></thead><tbody>${vendorRows}</tbody></table>
+      <h3 style="margin:4px 0 12px">Por vendedor</h3>
+      <table class="stats-table"><thead><tr><th>Vendedor</th><th>Setor</th><th>Presença</th><th>Pessoas atendidas</th><th>Mensagens</th><th>Em aberto</th></tr></thead><tbody>${vendorRows}</tbody></table>
     </div>
     <div class="stats-table-wrap">
       <h3 style="margin:4px 0 12px">Por setor</h3>
-      <table class="stats-table"><thead><tr><th>Setor</th><th>Online</th><th>Atendentes</th><th>Pessoas atendidas</th><th>Mensagens</th><th>Em aberto</th></tr></thead><tbody>${sectorRows}</tbody></table>
+      <table class="stats-table"><thead><tr><th>Setor</th><th>Online</th><th>Vendedores</th><th>Pessoas atendidas</th><th>Mensagens</th><th>Em aberto</th></tr></thead><tbody>${sectorRows}</tbody></table>
     </div>
   `;
 }
@@ -3004,7 +2989,10 @@ async function loadStatistics() {
     const response = await api(`/api/admin/statistics?days=${encodeURIComponent(days)}`, {
       signal: statisticsAbortController.signal
     });
-    if (response.status === 402) throw new Error('O acompanhamento está temporariamente indisponível');
+    if (response.status === 402) {
+      switchSection('financeiro');
+      return;
+    }
     if (!response.ok) throw new Error('Não foi possível carregar as estatísticas');
     const payload = await response.json();
     if (requestSeq !== statisticsLoadSeq) return;
@@ -3033,6 +3021,7 @@ function switchSection(section) {
   if (section === 'statistics') loadStatistics();
   if (section === 'sectors') loadSectors();
   if (section === 'connection') loadConnection();
+  if (section === 'financeiro') loadFinanceiro();
 }
 
 function renderSectorOptions(selectedId = '') {
@@ -3054,7 +3043,7 @@ async function loadUsers() {
     ]);
   } catch (error) {
     if (requestSeq !== usersLoadSeq) return;
-    list.innerHTML = `<div class="panel">${escapeHtml(error.message || 'Não foi possível carregar os agentes')}</div>`;
+    list.innerHTML = `<div class="panel">${escapeHtml(error.message || 'Não foi possível carregar os usuários')}</div>`;
     return;
   }
   if (requestSeq !== usersLoadSeq) return;
@@ -3065,12 +3054,12 @@ async function loadUsers() {
   const headerHtml = `
     <div class="panel" style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 20px 24px; border-bottom: 1px solid #e9edef;">
       <div>
-        <h3 style="margin: 0; color: #111b21; font-size: 17px; font-weight: 600;">Gerenciar Agentes</h3>
-        <p style="margin: 4px 0 0; color: #667781; font-size: 13px;">Adicione, edite ou desative acessos da equipe. <strong>${Number(currentUserLimit.used || 0)} de ${Number(currentUserLimit.limit || 0)} acessos ativos em uso.</strong>${atCapacity ? ' Novos agentes ainda podem ser preparados como inativos.' : ''}</p>
+        <h3 style="margin: 0; color: #111b21; font-size: 17px; font-weight: 600;">Gerenciar Usuários</h3>
+        <p style="margin: 4px 0 0; color: #667781; font-size: 13px;">Adicione, edite ou desative acessos da equipe. <strong>${Number(currentUserLimit.used || 0)} de ${Number(currentUserLimit.limit || 0)} acessos ativos em uso.</strong>${atCapacity ? ' Novos usuários ainda podem ser preparados como inativos.' : ''}</p>
       </div>
       <button onclick="openNewUser()" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: #25d366; color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(37,211,102,0.2);">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        Novo Agente
+        Novo Usuário
       </button>
     </div>
   `;
@@ -3108,12 +3097,12 @@ async function loadUsers() {
     `;
   }).join('');
   
-  list.innerHTML = headerHtml + (cachedUsers.length ? usersHtml : '<div style="padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; background: transparent;">Nenhum agente cadastrado.</div>');
+  list.innerHTML = headerHtml + (cachedUsers.length ? usersHtml : '<div style="padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; background: transparent;">Nenhum usuário cadastrado.</div>');
 }
 
 function openNewUser(sectorId = '') {
-  if (!cachedSectors.length) return showToast('Crie um setor antes de adicionar agentes');
-  document.getElementById('userModalTitle').textContent = 'Novo Agente';
+  if (!cachedSectors.length) return showToast('Crie um setor antes de adicionar usuários');
+  document.getElementById('userModalTitle').textContent = 'Novo Usuario';
   document.getElementById('vId').value = '';
   document.getElementById('vVersion').value = '';
   document.getElementById('vName').value = '';
@@ -3128,7 +3117,7 @@ function openNewUser(sectorId = '') {
 function editUser(id) {
   const user = cachedUsers.find(v => Number(v.id) === Number(id));
   if (!user) return;
-  document.getElementById('userModalTitle').textContent = 'Editar Agente';
+  document.getElementById('userModalTitle').textContent = 'Editar Usuario';
   document.getElementById('vId').value = user.id;
   document.getElementById('vVersion').value = user.row_version || 1;
   document.getElementById('vName').value = user.name || '';
@@ -3155,7 +3144,7 @@ function refreshUserActivationAvailability() {
   if (!sectorAllowsLogin) reasons.push('Setor inativo');
   document.getElementById('vQuotaHint').textContent = reasons.length
     ? `${reasons.join(' · ')}. O cadastro será salvo sem acesso até ser ativado.`
-    : `${Number(currentUserLimit.available || 0)} acesso(s) disponível(is). Alterações revogam as sessões atuais deste agente.`;
+    : `${Number(currentUserLimit.available || 0)} acesso(s) disponível(is). Alterações revogam as sessões atuais deste usuário.`;
 }
 
 async function saveUser() {
@@ -3166,7 +3155,7 @@ async function saveUser() {
   const password = document.getElementById('vPass').value;
   const sector_id = document.getElementById('vSector').value || null;
   const active = document.getElementById('vActive').checked;
-  if (!name || !username || !sector_id || (!id && !password)) return showToast('Preencha nome, usuário do agente, senha e departamento');
+  if (!name || !username || !sector_id || (!id && !password)) return showToast('Preencha nome, usuário, senha e departamento');
   if (password && Array.from(password).length < 10) return showToast('A senha deve ter no mínimo 10 caracteres');
   if (password && utf8ByteLength(password) > 72) return showToast('A senha não pode ultrapassar 72 bytes');
   const body = { name, username, password, sector_id, active, ...(row_version ? { row_version: Number(row_version) } : {}) };
@@ -3177,7 +3166,7 @@ async function saveUser() {
       body: JSON.stringify(body)
     });
     closeModal('vendorModal');
-    showToast(id ? 'Agente atualizado e sessões anteriores revogadas.' : 'Agente criado.', 'success');
+    showToast(id ? 'Usuário atualizado e sessões anteriores revogadas.' : 'Usuário criado.', 'success');
     await loadUsers();
     await loadConversations({ force: true, refreshMetadata: true });
   } catch (error) {
@@ -3185,7 +3174,7 @@ async function saveUser() {
       closeModal('vendorModal');
       await loadUsers();
     }
-    showToast(error.message || 'Erro ao salvar agente');
+    showToast(error.message || 'Erro ao salvar usuario');
   } finally {
     setButtonPending('saveUserButton', false);
   }
@@ -3205,7 +3194,7 @@ async function deactivateUserAccess(event, id, rowVersion) {
     await loadConversations({ force: true, refreshMetadata: true });
   } catch (error) {
     if (error.code === 'STALE_WRITE') await loadUsers();
-    showToast(error.message || 'Não foi possível desativar o agente');
+    showToast(error.message || 'Não foi possível desativar o usuário');
   }
 }
 
@@ -3318,7 +3307,6 @@ function connectionStatusText(data) {
   if (data.ready) return 'Conectado';
   if (data.qr) return 'Aguardando leitura do QR';
   const st = String(data.state || '').toLowerCase();
-  if (st === 'qr') return 'Aguardando leitura do QR';
   if (st === 'banned') return '🚫 Conta banida';
   if (st === 'verification_required') return '🔐 Verificação necessária';
   if (st === 'authenticated') return 'Autenticando';
@@ -3520,6 +3508,109 @@ async function disconnectMyWhatsApp() {
   if (!res.ok) return showToast('Erro ao desconectar');
   scheduleConnectionRefreshes([1000]);
   loadConnection();
+}
+
+function financeiroStatusLabel(status) {
+  if (status === 'active') return 'Ativo';
+  if (status === 'trialing') return 'Em teste gratuito';
+  return 'Suspenso';
+}
+
+function financeiroMoney(cents, currency) {
+  const value = (cents || 0) / 100;
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: (currency || 'brl').toUpperCase() });
+}
+
+function invoiceStatusLabel(status) {
+  const labels = { paid: 'Pago', open: 'Aguardando pagamento', void: 'Cancelada', uncollectible: 'Não cobrada', draft: 'Rascunho' };
+  return labels[status] || status;
+}
+
+async function loadFinanceiro() {
+  const list = document.getElementById('tabFinanceiro');
+  list.innerHTML = '<div class="panel">Carregando...</div>';
+
+  const [statusRes, invoicesRes] = await Promise.all([
+    api('/api/billing/status').catch(() => null),
+    api('/api/billing/invoices').catch(() => null)
+  ]);
+  const status = statusRes?.ok ? await statusRes.json() : null;
+  const invoices = invoicesRes?.ok ? await invoicesRes.json() : [];
+  if (!status) { list.innerHTML = '<div class="panel">Financeiro disponível apenas para o administrador da empresa.</div>'; return; }
+
+  const daysLeft = status.trial_ends_at ? Math.ceil((new Date(status.trial_ends_at) - new Date()) / (24 * 60 * 60 * 1000)) : null;
+
+  let statusHtml;
+  if (status.comp) {
+    statusHtml = `<p><span class="status active">Cortesia</span> Sua conta tem acesso liberado, sem cobrança.</p>`;
+  } else if (status.billing_status === 'active') {
+    statusHtml = `<p><span class="status active">Ativo</span> Sua assinatura está em dia.</p>`;
+  } else if (status.billing_status === 'trialing') {
+    statusHtml = `<p><span class="status active">Teste gratuito</span> Termina em ${daysLeft != null ? daysLeft : '?'} dia(s) (${escapeHtml(formatDateOnly(status.trial_ends_at) || '-')}).</p>`;
+  } else {
+    statusHtml = `<p><span class="status inactive">Suspenso</span> Sua assinatura precisa de atenção para continuar usando o sistema.</p>`;
+  }
+
+  const showSubscribeBtn = !status.comp && !status.has_stripe_subscription;
+  const showPortalBtn = !status.comp && status.has_stripe_customer && status.has_stripe_subscription;
+
+  const invoiceRows = invoices.length
+    ? invoices.map(inv => {
+        const hostedUrl = safeHttpsUrl(inv.hostedUrl);
+        return `
+        <tr>
+          <td style="padding:8px;border-top:1px solid var(--border)">${escapeHtml(formatDateOnly(inv.created) || '-')}</td>
+          <td style="padding:8px;border-top:1px solid var(--border)">${financeiroMoney(inv.amountCents, inv.currency)}</td>
+          <td style="padding:8px;border-top:1px solid var(--border)">${escapeHtml(invoiceStatusLabel(inv.status))}</td>
+          <td style="padding:8px;border-top:1px solid var(--border)">${hostedUrl ? `<a href="${escapeHtml(hostedUrl)}" target="_blank" rel="noopener">Ver fatura</a>` : '-'}</td>
+        </tr>
+      `;
+      }).join('')
+    : `<tr><td colspan="4" style="padding:12px;border-top:1px solid var(--border);color:#888">Nenhum pagamento registrado ainda</td></tr>`;
+
+  list.innerHTML = `
+    <div class="panel">
+      <h3>Assinatura</h3>
+      ${statusHtml}
+      ${showSubscribeBtn ? '<button onclick="startCheckout()">Assinar / Pagar agora</button>' : ''}
+      ${showPortalBtn ? '<button onclick="openBillingPortal()">Gerenciar forma de pagamento</button>' : ''}
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h3>Pagamentos</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--surface);text-align:left">
+          <th style="padding:8px">Data</th>
+          <th style="padding:8px">Valor</th>
+          <th style="padding:8px">Status</th>
+          <th style="padding:8px">Fatura</th>
+        </tr></thead>
+        <tbody>${invoiceRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function startCheckout() {
+  const res = await api('/api/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  const data = await res.json();
+  if (!res.ok || !data.url) return showToast(data.error || 'Pagamento online ainda não está disponível. Fale com o suporte.');
+  const checkoutUrl = safeHttpsUrl(data.url);
+  if (!checkoutUrl) return showToast('A Stripe retornou um endereço de pagamento inválido.');
+  window.location.href = checkoutUrl;
+}
+
+function scheduleBillingRefreshes(delays = [2000, 5000, 10000, 20000]) {
+  billingRefreshTimers.forEach(clearTimeout);
+  billingRefreshTimers = delays.map(delay => setTimeout(loadFinanceiro, delay));
+}
+
+async function openBillingPortal() {
+  const res = await api('/api/billing/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  const data = await res.json();
+  if (!res.ok || !data.url) return showToast('Não foi possível abrir o portal de pagamento agora. Fale com o suporte.');
+  const portalUrl = safeHttpsUrl(data.url);
+  if (!portalUrl) return showToast('A Stripe retornou um endereço de portal inválido.');
+  window.location.href = portalUrl;
 }
 
 async function resetWhatsAppSession() {
