@@ -231,7 +231,9 @@ docker run --rm --network none --read-only --tmpfs /tmp:size=256m \
   --shm-size 256m \
   --user "$APP_UID:$APP_GID" \
   --cap-drop ALL \
+  --cap-add SYS_CHROOT \
   --security-opt no-new-privileges:true \
+  --security-opt seccomp=./seccomp/chromium.json \
   -e HOME=/tmp \
   -e XDG_CONFIG_HOME=/tmp/chrome-config \
   -e XDG_CACHE_HOME=/tmp/chrome-cache \

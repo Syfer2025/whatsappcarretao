@@ -132,8 +132,20 @@ services:
       XDG_CACHE_HOME: /app/.wwebjs_cache
     security_opt:
       - no-new-privileges:true
+      # O sandbox do Chromium se isola criando user namespaces e chamando
+      # chroot. O perfil seccomp padrao do Docker nega CLONE_NEWUSER sem
+      # CAP_SYS_ADMIN, e cap_drop ALL tira CAP_SYS_CHROOT: o Chromium morria
+      # em "Failed to move to new namespace" e depois em sys_chroot. Este
+      # perfil e o padrao do Docker com clone/unshare/setns liberados — nada
+      # mais foi afrouxado. Ver seccomp/chromium.json.
+      - seccomp=./seccomp/chromium.json
     cap_drop:
       - ALL
+    cap_add:
+      # Unica capability devolvida, e a mais estreita possivel: permite apenas
+      # chroot(2), que o sandbox do Chromium usa para trocar a raiz do
+      # processo renderizador. Sem ela o sandbox nao sobe.
+      - SYS_CHROOT
     read_only: true
     tmpfs:
       - /tmp:size=1g,mode=1777

@@ -20,3 +20,5 @@ backups/
 .wwebjs_cache/
 
 .DS_Store
+
+.deploy.lock
