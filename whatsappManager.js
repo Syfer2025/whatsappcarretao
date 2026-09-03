@@ -566,6 +566,51 @@ async function applyResilientGetChatsPatch(tenantId, session, client) {
   try {
     const applied = await page.evaluate(() => {
       if (!window.WWebJS || typeof window.WWebJS.getChats !== 'function') return false;
+
+      // O WhatsApp Web renomeia o campo serializado dos IDs entre builds (em
+      // 08/2026 saiu de `_serialized` para `$1`). Dentro de getChatModel a lib
+      // le `chat.lastReceivedKey._serialized` sem guarda: o valor vem
+      // undefined e a consulta ao IndexedDB estoura com
+      // "Failed to execute 'get' on 'IDBObjectStore': No key or key range
+      // specified" — que chega ao servidor como a exceção minificada "r" e
+      // vira "Conversa não encontrada no WhatsApp Web" na tela do atendente.
+      // Medido em 03/set/2026: 25 de 633 conversas falhavam e NENHUMA tinha
+      // prévia da última mensagem; com o reparo, 0 falhas e as 25 prévias
+      // voltaram. A remontagem usa fromMe/remote/id, que sao nomes semanticos
+      // e sobrevivem ao proximo rename.
+      if (!window.WWebJS.getChatModel.__idRepair) {
+        const serializedId = id => {
+          if (!id) return undefined;
+          if (typeof id === 'string') return id || undefined;
+          if (typeof id._serialized === 'string' && id._serialized) return id._serialized;
+          for (const value of Object.values(id)) {
+            if (typeof value === 'string' && /^(?:true|false)_[^_]+@[a-z.]+_.+/i.test(value)) return value;
+          }
+          const { fromMe, remote, id: local, participant } = id;
+          if (typeof local !== 'string' || !local) return undefined;
+          if (typeof remote !== 'string' || !remote) return undefined;
+          const base = `${Boolean(fromMe)}_${remote}_${local}`;
+          const participantId = typeof participant === 'string'
+            ? participant
+            : (participant && typeof participant._serialized === 'string' ? participant._serialized : '');
+          return participantId ? `${base}_${participantId}` : base;
+        };
+
+        const originalGetChatModel = window.WWebJS.getChatModel;
+        const repairedGetChatModel = async function (chat, options) {
+          const key = chat && chat.lastReceivedKey;
+          if (key && typeof key === 'object' && !key._serialized) {
+            const resolved = serializedId(key);
+            // Falha silenciosa e aceitavel: se o objeto for congelado, o
+            // getChatModel original volta a se virar como antes.
+            if (resolved) { try { key._serialized = resolved; } catch { /* somente leitura */ } }
+          }
+          return originalGetChatModel.call(this, chat, options);
+        };
+        repairedGetChatModel.__idRepair = true;
+        window.WWebJS.getChatModel = repairedGetChatModel;
+      }
+
       if (window.WWebJS.getChats.__resilient) return true;
       const resilientGetChats = async () => {
         const chats = window.require('WAWebCollections').Chat.getModelsArray();

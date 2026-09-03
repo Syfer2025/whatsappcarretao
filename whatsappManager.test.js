@@ -901,6 +901,35 @@ test('erros de frame destacado e contexto destruido contam como transitorios', (
   }
 });
 
+// Regressao 03/set/2026: getChatModel lia chat.lastReceivedKey._serialized sem
+// guarda. Com o campo renomeado pelo WhatsApp Web, a consulta ao IndexedDB
+// estourava e 25 de 633 conversas viravam "Conversa nao encontrada".
+test('o patch da pagina repara o id serializado antes de chamar getChatModel', () => {
+  const source = require('node:fs').readFileSync(require.resolve('./whatsappManager.js'), 'utf8');
+  const inicio = source.indexOf('async function applyResilientGetChatsPatch');
+  const trecho = source.slice(inicio, inicio + 4000);
+
+  assert.match(trecho, /lastReceivedKey/);
+  assert.match(trecho, /__idRepair/);
+  // Precisa remontar a partir dos nomes semanticos, nao fixar o nome minificado
+  // da vez ($1), que muda no proximo build do WhatsApp Web.
+  assert.match(trecho, /fromMe/);
+  assert.match(trecho, /remote/);
+  // O nome pode aparecer em comentario; o que nao pode e ser lido como
+  // propriedade (id.$1 / id['$1']), que quebra no proximo rename.
+  const semComentarios = trecho.replace(/\/\/[^\n]*/g, '');
+  assert.ok(
+    !/[.[]\s*['"]?\$1\b/.test(semComentarios),
+    'nao deve ler a propriedade minificada $1 diretamente'
+  );
+  // O reparo tem de vir antes do short-circuit do getChats, senao nunca roda
+  // numa pagina que ja tem o getChats resiliente aplicado.
+  assert.ok(
+    trecho.indexOf('__idRepair') < trecho.indexOf('getChats.__resilient) return true'),
+    'o reparo do id deve ser aplicado antes do return antecipado do getChats'
+  );
+});
+
 test('whatsapp pairing QR is never printed into production logs', () => {
   assert.match(src, /process\.env\.NODE_ENV !== 'production' && process\.env\.WA_PRINT_QR_TO_TERMINAL === 'true'/);
   assert.match(src, /qrcode\.generate\(qr, \{ small: true \}\)/);
