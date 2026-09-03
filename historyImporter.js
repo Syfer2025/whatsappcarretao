@@ -6,6 +6,7 @@ const {
   toSqlDate,
   toSqlDateOrNull,
   getMessageExternalId,
+  serializedMessageId,
   getMessageContent,
   hasPotentialMedia
 } = require('./whatsappUtils');
@@ -31,7 +32,9 @@ const { sleep, withTimeout } = require('./runtimeUtils');
 function serializedId(value) {
   if (typeof value === 'string') return value;
   if (typeof value?._serialized === 'string') return value._serialized;
-  return getChatId(value);
+  // IDs de mensagem (citada, protocolo) podem trazer o campo serializado sob
+  // outro nome depois de um rebuild do WhatsApp Web — ver whatsappUtils.js.
+  return serializedMessageId(value) || getChatId(value);
 }
 
 function safeProperty(object, property) {

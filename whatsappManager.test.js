@@ -874,6 +874,33 @@ test('whatsapp manager does not spoof browser fingerprints in application code',
   assert.doesNotMatch(src, /AudioContext/);
 });
 
+// Regressao 02/set/2026: uma rejeicao atrasada do Puppeteer chegando na janela
+// em que destroySession ja removeu a sessao e createSession ainda nao registrou
+// a nova derrubava o servidor inteiro.
+test('rejeicao transitoria durante recriacao de sessao nao derruba o servidor', () => {
+  const source = require('node:fs').readFileSync(require.resolve('./whatsappManager.js'), 'utf8');
+  const trecho = source.slice(
+    source.indexOf('function recoverUnhandledRuntimeError'),
+    source.indexOf('function recoverUnhandledRuntimeError') + 1600
+  );
+  // Sem sessao recuperavel no mapa, a reserva de capacidade precisa segurar o
+  // erro em vez de deixar o unhandledRejection matar o processo.
+  assert.match(trecho, /if \(!recovering\.length\) \{/);
+  assert.match(trecho, /if \(!capacityReservations\.size\) return false;/);
+  assert.match(trecho, /absorvida durante recriação de sessão/);
+});
+
+test('erros de frame destacado e contexto destruido contam como transitorios', () => {
+  const source = require('node:fs').readFileSync(require.resolve('./whatsappManager.js'), 'utf8');
+  const trecho = source.slice(
+    source.indexOf('function isRetryableInitializationError'),
+    source.indexOf('function isAlreadyClosedBrowserError')
+  );
+  for (const padrao of ['detached Frame', 'Execution context was destroyed', 'Target crashed']) {
+    assert.ok(trecho.includes(padrao), `faltou o padrao ${padrao}`);
+  }
+});
+
 test('whatsapp pairing QR is never printed into production logs', () => {
   assert.match(src, /process\.env\.NODE_ENV !== 'production' && process\.env\.WA_PRINT_QR_TO_TERMINAL === 'true'/);
   assert.match(src, /qrcode\.generate\(qr, \{ small: true \}\)/);

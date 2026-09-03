@@ -78,9 +78,40 @@ function toSqlDateOrNull(timestampSeconds) {
   return new Date(seconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
+// O bundle do WhatsApp Web é minificado e o nome do campo serializado muda
+// entre builds: em 08/2026 o ID de mensagem saiu de `_serialized` para `$1`,
+// mas o whatsapp-web.js 1.34.7 só lê o nome antigo (upstream #5733). Ler
+// apenas `_serialized` fazia getMessageExternalId devolver null para TODA
+// mensagem, e o importador descarta mensagem sem ID externo
+// (historyImporter.js: `if (!externalId) continue`) — 100% das mensagens
+// sumiam mesmo com o conteúdo presente na página.
+//
+// A ordem abaixo sobrevive ao próximo rename: primeiro o valor que o próprio
+// WhatsApp expõe (qualquer nome que ele use), e só então a remontagem a partir
+// de fromMe/remote/id, que são nomes semânticos e não são minificados.
+const SERIALIZED_MESSAGE_ID = /^(?:true|false)_[^_]+@[a-z.]+_.+/i;
+
+function serializedMessageId(rawId) {
+  if (typeof rawId === 'string') return rawId || null;
+  if (!rawId || typeof rawId !== 'object') return null;
+  if (typeof rawId._serialized === 'string' && rawId._serialized) return rawId._serialized;
+  // Só aceita valores com a forma de ID de mensagem: `remote` também é string
+  // e casaria com um teste mais frouxo, devolvendo o ID do chat por engano.
+  for (const value of Object.values(rawId)) {
+    if (typeof value === 'string' && SERIALIZED_MESSAGE_ID.test(value)) return value;
+  }
+  const { fromMe, remote, id: local, participant } = rawId;
+  if (typeof local !== 'string' || !local) return null;
+  if (typeof remote !== 'string' || !remote) return null;
+  const base = `${Boolean(fromMe)}_${remote}_${local}`;
+  const participantId = typeof participant === 'string'
+    ? participant
+    : (typeof participant?._serialized === 'string' ? participant._serialized : '');
+  return participantId ? `${base}_${participantId}` : base;
+}
+
 function getMessageExternalId(msg) {
-  const id = msg?.id?._serialized ?? msg?.id;
-  return typeof id === 'string' ? id : null;
+  return serializedMessageId(msg?.id ?? msg);
 }
 
 function getWhatsAppMediaType(messageType) {
@@ -121,6 +152,7 @@ module.exports = {
   toSqlDate,
   toSqlDateOrNull,
   getMessageExternalId,
+  serializedMessageId,
   getMessageContent,
   shouldProcessMessageEvent,
   getWhatsAppMediaType,

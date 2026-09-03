@@ -294,9 +294,12 @@ function shouldDisableChromiumSandbox() {
   return process.env.NODE_ENV !== 'production' || process.env.WA_NO_SANDBOX === 'true';
 }
 
+// O LOGOUT do WhatsApp Web destrói o frame enquanto o whatsapp-web.js ainda
+// está injetando (Client.inject). A rejeição escapa como unhandledRejection e,
+// sem casar aqui, derruba o servidor inteiro em vez de só reconectar a sessão.
 function isRetryableInitializationError(err) {
   const message = String(err?.message || err || '');
-  return /Target closed|Protocol error|Session closed|browser has disconnected|Connection closed|WebSocket is not open|ECONNRESET|ECONNREFUSED|Failed to launch|Chrome|Chromium/i.test(message);
+  return /Target closed|Protocol error|Session closed|browser has disconnected|Connection closed|WebSocket is not open|ECONNRESET|ECONNREFUSED|Failed to launch|Chrome|Chromium|detached Frame|Execution context was destroyed|Execution context is not available|Target crashed|Navigating frame was detached/i.test(message);
 }
 
 function isAlreadyClosedBrowserError(err) {
@@ -426,7 +429,22 @@ function recoverUnhandledRuntimeError(err) {
   const recovering = [...sessions.entries()].filter(([, session]) => (
     session.reconnectTimer || recoverableStatuses.has(session.status)
   ));
-  if (!recovering.length) return false;
+  if (!recovering.length) {
+    // Janela de recriação: destroySession já tirou a sessão do mapa e
+    // createSession ainda não registrou a nova, então `sessions` está vazio.
+    // Uma rejeição atrasada do Puppeteer (o Chromium acabou de ser morto de
+    // propósito) caía aqui sem ninguém para absorvê-la e derrubava o processo
+    // inteiro — 02/set/2026, 243ms depois de "Sessão WhatsApp travada —
+    // recriando". A reserva de capacidade é mantida durante toda a recriação
+    // (ver recreateStuckSession), então serve de sinal de que há uma troca de
+    // sessão em andamento.
+    if (!capacityReservations.size) return false;
+    logger?.warn(
+      { err, reserved: capacityReservations.size },
+      'Rejeição transitória do WhatsApp Web absorvida durante recriação de sessão'
+    );
+    return true;
+  }
 
   for (const [tenantId, session] of recovering) {
     if (!session.reconnectTimer) handleSessionRuntimeError(tenantId, session, err);

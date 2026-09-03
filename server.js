@@ -116,6 +116,7 @@ const {
   getDisplayName,
   shouldReplaceDisplayName,
   getMessageExternalId,
+  serializedMessageId,
   getMessageContent,
   toSqlDate,
   shouldProcessMessageEvent,
@@ -4615,9 +4616,9 @@ function revokedExternalId(msg, revokedMsg) {
   const direct = getMessageExternalId(revokedMsg);
   if (direct) return direct;
   const protocolKey = msg?.protocolMessageKey;
-  if (typeof protocolKey?._serialized === 'string') return protocolKey._serialized;
-  if (typeof protocolKey?.id?._serialized === 'string') return protocolKey.id._serialized;
-  return null;
+  // Mesmo motivo de whatsappUtils.js: o nome do campo serializado muda entre
+  // builds do WhatsApp Web, entao nao da para ler so `_serialized`.
+  return serializedMessageId(protocolKey) || serializedMessageId(protocolKey?.id);
 }
 
 function handleMessageRevoke(msg, revokedMsg) {

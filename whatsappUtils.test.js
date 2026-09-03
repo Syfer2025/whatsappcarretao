@@ -9,6 +9,7 @@ const {
   toSqlDate,
   toSqlDateOrNull,
   getMessageExternalId,
+  serializedMessageId,
   getMessageContent,
   shouldProcessMessageEvent,
   getWhatsAppMediaType,
@@ -65,6 +66,58 @@ test('converts whatsapp unix seconds to sqlite datetime text', () => {
   assert.equal(toSqlDate(1700000000), '2023-11-14 22:13:20');
   assert.equal(toSqlDateOrNull(0), null);
   assert.equal(toSqlDateOrNull(undefined), null);
+});
+
+// Regressao 02/set/2026: o build do WhatsApp Web renomeou o campo serializado
+// de `_serialized` para `$1` e o importador passou a descartar 100% das
+// mensagens (ID externo nulo). Ver whatsappUtils.js.
+test('resolve o id da mensagem quando o WhatsApp renomeia o campo serializado', () => {
+  const idRenomeado = {
+    fromMe: true,
+    remote: '212987512123587@lid',
+    id: 'A5CA7787B8F91456E0911DA5104271FB',
+    $1: 'true_212987512123587@lid_A5CA7787B8F91456E0911DA5104271FB'
+  };
+  assert.equal(
+    getMessageExternalId({ id: idRenomeado }),
+    'true_212987512123587@lid_A5CA7787B8F91456E0911DA5104271FB'
+  );
+});
+
+test('remonta o id da mensagem quando nenhum campo serializado sobra', () => {
+  assert.equal(
+    getMessageExternalId({ id: { fromMe: false, remote: '554499887766@c.us', id: 'ABC123' } }),
+    'false_554499887766@c.us_ABC123'
+  );
+  assert.equal(
+    getMessageExternalId({
+      id: { fromMe: false, remote: '55449988@g.us', id: 'ABC123', participant: '554411@c.us' }
+    }),
+    'false_55449988@g.us_ABC123_554411@c.us'
+  );
+});
+
+test('nao confunde o id do chat com o id da mensagem', () => {
+  // `remote` tambem e string e casaria com um teste mais frouxo de sufixo.
+  assert.equal(
+    serializedMessageId({ fromMe: true, remote: '212987512123587@lid', id: 'XYZ' }),
+    'true_212987512123587@lid_XYZ'
+  );
+  assert.equal(serializedMessageId({ remote: '554499887766@c.us' }), null);
+  assert.equal(serializedMessageId({}), null);
+  assert.equal(serializedMessageId(null), null);
+});
+
+test('o campo serializado do proprio WhatsApp tem prioridade sobre a remontagem', () => {
+  assert.equal(
+    serializedMessageId({
+      _serialized: 'true_x@c.us_AUTORIDADE',
+      fromMe: true,
+      remote: 'y@c.us',
+      id: 'REMONTADO'
+    }),
+    'true_x@c.us_AUTORIDADE'
+  );
 });
 
 test('extracts stable message id and media fallback content', () => {
