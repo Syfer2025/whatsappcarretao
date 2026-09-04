@@ -113,6 +113,13 @@ test('rotas sensíveis respeitam autoria, papel e origem em execução real', { 
     JWT_SECRET: 'security-routes-integration-secret-32-bytes',
     ADMIN_USERNAME: 'platform-security@test.local',
     ADMIN_PASSWORD: 'Platform-Security-Password-123',
+    // Edicao fixada de proposito. O servidor filho carrega o .env do projeto, e
+    // na edicao interna /superadmin.html e escondido por decisao de produto
+    // (ver internalEdition.js). Sem fixar aqui, o teste passava ou falhava
+    // conforme o .env da maquina — e passou a barrar o deploy sem nenhuma
+    // mudanca de codigo. As rotas verificadas abaixo sao as da edicao completa.
+    APP_MODE: '',
+    INTERNAL_SINGLE_TENANT: '',
     LOG_LEVEL: 'fatal'
   };
   let output = '';
@@ -335,6 +342,7 @@ test('rotas sensíveis respeitam autoria, papel e origem em execução real', { 
     `).run(conversationId, 'outbound-owned-by-vendor-one', vendorOne.body.id, 'Mensagem do vendedor um').lastInsertRowid);
     tenantDb.close();
 
+    const vendorOneSocket = await openPollingSocket(vendorOneJar);
     const vendorTwoSocket = await openPollingSocket(vendorTwoJar);
     const vendorThreeSocket = await openPollingSocket(vendorThreeJar);
     const assignment = await request(`/api/conversations/${conversationId}/assign`, {
@@ -343,26 +351,41 @@ test('rotas sensíveis respeitam autoria, papel e origem em execução real', { 
       json: { vendor_id: vendorOne.body.id, sector_id: sector.body.id }
     });
     assert.equal(assignment.response.status, 200, JSON.stringify(assignment.body));
-    const scopedRealtimeEvent = await pollSocket(vendorTwoSocket);
+    // Tempo real chega SO para o vendedor atribuido.
+    const scopedRealtimeEvent = await pollSocket(vendorOneSocket);
     assert.match(scopedRealtimeEvent, /conversation:updated/);
     assert.match(scopedRealtimeEvent, new RegExp(`"conversationId":${conversationId}(?:[,}])`));
+    assert.equal(
+      await pollSocketUntilTimeout(vendorTwoSocket),
+      null,
+      'vendedor do mesmo setor não pode receber a conversa de outro vendedor'
+    );
     assert.equal(
       await pollSocketUntilTimeout(vendorThreeSocket),
       null,
       'vendedor de outro setor não pode receber nem metadados da conversa'
     );
 
+    // Vendedor do mesmo setor nao le a conversa de outro vendedor.
     const visibleToSecondVendor = await request(`/api/conversations/${conversationId}/messages`, {
       jar: vendorTwoJar
     });
-    assert.equal(visibleToSecondVendor.response.status, 200, JSON.stringify(visibleToSecondVendor.body));
-    assert.equal(visibleToSecondVendor.body.at(-1).id, messageId);
+    assert.equal(visibleToSecondVendor.response.status, 403, JSON.stringify(visibleToSecondVendor.body));
 
+    // E o dono le normalmente.
+    const visibleToOwner = await request(`/api/conversations/${conversationId}/messages`, {
+      jar: vendorOneJar
+    });
+    assert.equal(visibleToOwner.response.status, 200, JSON.stringify(visibleToOwner.body));
+    assert.equal(visibleToOwner.body.at(-1).id, messageId);
+
+    // Apagar mensagem de outro vendedor para para no controle de acesso antes
+    // mesmo da regra de autoria.
     const foreignDelete = await request(`/api/messages/${messageId}?scope=everyone`, {
       method: 'DELETE', jar: vendorTwoJar
     });
     assert.equal(foreignDelete.response.status, 403, JSON.stringify(foreignDelete.body));
-    assert.match(foreignDelete.body.error, /autor/i);
+    assert.match(foreignDelete.body.error, /não é sua/i);
 
     const ownerDeleteWithoutWhatsApp = await request(`/api/messages/${messageId}?scope=everyone`, {
       method: 'DELETE', jar: vendorOneJar
