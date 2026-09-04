@@ -362,9 +362,30 @@ const corsOptions = {
   credentials: true
 };
 
-function isSocketOriginAllowed(origin) {
+// Hosts derivados das origens configuradas, para validar requisicao sem Origin.
+const allowedHosts = allowedOrigins
+  .map(origin => { try { return new URL(origin).host.toLowerCase(); } catch { return null; } })
+  .filter(Boolean);
+
+// Navegador NAO envia Origin em GET/HEAD same-origin — e o transporte polling
+// do socket.io e exatamente isso. Tratar a ausencia como proibida derrubava
+// TODO o tempo real em producao: o painel recebia 403 em cada tentativa de
+// conexao (1.570 no log do nginx em poucas horas), o frontend engolia o
+// connect_error, e a conversa so atualizava quando algum refresh por HTTP
+// acontecia — ao enviar mensagem ou recarregar a pagina.
+//
+// Um pedido cross-site feito por navegador SEMPRE carrega Origin, entao a
+// ausencia dele indica same-origin (seguro) ou cliente fora do navegador, onde
+// o JWT do handshake e que barra. Confirmamos pelo Host, que o navegador nao
+// permite forjar. O CORS de HTTP nesta mesma app ja aceitava origem ausente
+// (corsOptions acima); o socket estava mais restritivo por acidente, nao por
+// decisao.
+function isSocketOriginAllowed(origin, host) {
   const normalizedOrigin = String(origin || '').trim();
-  if (!normalizedOrigin) return process.env.NODE_ENV !== 'production';
+  if (!normalizedOrigin) {
+    if (!allowedHosts.length) return process.env.NODE_ENV !== 'production';
+    return allowedHosts.includes(String(host || '').trim().toLowerCase());
+  }
   if (!allowedOrigins.length) return process.env.NODE_ENV !== 'production';
   return allowedOrigins.includes(normalizedOrigin);
 }
@@ -421,7 +442,7 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: corsOptions,
   allowRequest(request, callback) {
-    callback(null, isSocketOriginAllowed(request.headers?.origin));
+    callback(null, isSocketOriginAllowed(request.headers?.origin, request.headers?.host));
   }
 });
 const presenceRegistry = createPresenceRegistry({
@@ -4222,7 +4243,7 @@ function updateSocketUserLastSeen(socket) {
 
 io.use((socket, next) => {
   try {
-    if (!isSocketOriginAllowed(socket.handshake.headers?.origin)) {
+    if (!isSocketOriginAllowed(socket.handshake.headers?.origin, socket.handshake.headers?.host)) {
       return next(new Error('Origem nao permitida'));
     }
     if (checkSocketRateLimit(socket)) {

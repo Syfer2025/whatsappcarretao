@@ -69,6 +69,30 @@ function stopChild(child) {
   });
 }
 
+// Regressao 04/set/2026: o handshake do socket.io recusava requisicao sem
+// header Origin, e navegador nao envia Origin em GET same-origin — que e
+// exatamente o transporte polling. Resultado: 403 em toda conexao e ZERO
+// tempo real em producao, com o frontend engolindo o connect_error.
+test('handshake do socket aceita same-origin sem header Origin e recusa host estranho', () => {
+  const source = require('node:fs').readFileSync(require.resolve('./server.js'), 'utf8');
+  const inicio = source.indexOf('function isSocketOriginAllowed');
+  const trecho = source.slice(inicio, inicio + 700);
+
+  // Origem ausente nao pode mais cair direto em "proibido" por NODE_ENV.
+  assert.ok(
+    !/if \(!normalizedOrigin\) return process\.env\.NODE_ENV !== 'production';/.test(trecho),
+    'origem ausente nao deve ser recusada apenas por estar em producao'
+  );
+  // Precisa validar pelo Host, que o navegador nao deixa forjar.
+  assert.match(trecho, /allowedHosts/);
+  assert.match(source, /isSocketOriginAllowed\(request\.headers\?\.origin, request\.headers\?\.host\)/);
+
+  // E a lista de hosts tem de sair das origens configuradas, nao ser fixa.
+  const hosts = source.slice(source.indexOf('const allowedHosts'), source.indexOf('const allowedHosts') + 260);
+  assert.match(hosts, /allowedOrigins/);
+  assert.match(hosts, /new URL\(origin\)/);
+});
+
 test('rotas sensíveis respeitam autoria, papel e origem em execução real', { timeout: 45000 }, async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'whatsa-security-routes-'));
   const dataDir = path.join(sandbox, 'data');

@@ -573,11 +573,18 @@ test('socket rooms expose conversation metadata and presence only to their autho
 test('socket handshake validates browser origin before authentication', () => {
   const source = fs.readFileSync('server.js', 'utf8');
 
-  assert.match(source, /function isSocketOriginAllowed\(origin\)/);
-  assert.match(source, /if \(!normalizedOrigin\) return process\.env\.NODE_ENV !== 'production'/);
+  // Atualizado em 04/set/2026: as asserções antigas congelavam o formato em que
+  // origem AUSENTE era recusada em producao. Navegador nao envia Origin em GET
+  // same-origin — o transporte polling do socket.io — entao aquilo recusava
+  // toda conexao do painel (403) e zerava o tempo real. A validacao agora cai
+  // no Host, que o navegador nao deixa forjar.
+  assert.match(source, /function isSocketOriginAllowed\(origin, host\)/);
   assert.match(source, /allowRequest\(request, callback\)/);
-  assert.match(source, /isSocketOriginAllowed\(request\.headers\?\.origin\)/);
-  assert.match(source, /if \(!isSocketOriginAllowed\(socket\.handshake\.headers\?\.origin\)\)/);
+  // Os DOIS pontos de checagem precisam receber o host, senao um deles recusa.
+  assert.match(source, /isSocketOriginAllowed\(request\.headers\?\.origin, request\.headers\?\.host\)/);
+  assert.match(source, /if \(!isSocketOriginAllowed\(socket\.handshake\.headers\?\.origin, socket\.handshake\.headers\?\.host\)\)/);
+  // Origem presente continua conferida contra a lista exata.
+  assert.match(source, /return allowedOrigins\.includes\(normalizedOrigin\)/);
 });
 
 test('support channel is tenant-admin-only and delete-for-everyone enforces message authorship', () => {
