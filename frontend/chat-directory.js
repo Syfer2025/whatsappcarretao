@@ -207,7 +207,7 @@
   function renderProfile(profile) {
     const content = document.getElementById('conversationProfileContent');
     if (!content) return;
-    const name = profile.contact_name || profile.name || formatPhone(profile.phone);
+    const name = profile.contact_name || profile.name || formatPhone(conversationPhone(profile));
     const avatar = profile.profile_pic_url
       ? `<img src="${escapeHtml(profile.profile_pic_url)}" alt="">`
       : escapeHtml(initials(name));
@@ -245,7 +245,7 @@
         ${isGroup ? '' : `<button class="profile-action ${blocked ? 'restore' : 'danger'}" type="button" data-profile-action="block" ${actionDisabled ? 'disabled' : ''}>${escapeHtml(actionLabel('block', blocked ? 'Desbloquear contato' : 'Bloquear contato'))}</button>`}
       </div>
     </div>`;
-    content.innerHTML = `<div class="profile-hero"><div class="profile-avatar">${avatar}</div><div class="profile-name">${escapeHtml(name)}</div><div class="profile-phone">${escapeHtml(isGroup ? `${participants.length} participantes` : formatPhone(profile.phone))}</div>${profile.profile_about || profile.group_description ? `<div class="profile-about">${escapeHtml(profile.profile_about || profile.group_description)}</div>` : ''}<div class="profile-meta">${chips.map(chip => `<span class="profile-chip">${escapeHtml(chip)}</span>`).join('')}</div></div>${controls}${isGroup ? `<div class="directory-section-title">Participantes</div><div class="participant-list">${participantsHtml || '<div class="directory-empty">Nenhum participante disponível.</div>'}</div>` : ''}`;
+    content.innerHTML = `<div class="profile-hero"><div class="profile-avatar">${avatar}</div><div class="profile-name">${escapeHtml(name)}</div><div class="profile-phone">${escapeHtml(isGroup ? `${participants.length} participantes` : (formatPhone(conversationPhone(profile)) || 'Telefone nao disponivel'))}</div>${profile.profile_about || profile.group_description ? `<div class="profile-about">${escapeHtml(profile.profile_about || profile.group_description)}</div>` : ''}<div class="profile-meta">${chips.map(chip => `<span class="profile-chip">${escapeHtml(chip)}</span>`).join('')}</div></div>${controls}${isGroup ? `<div class="directory-section-title">Participantes</div><div class="participant-list">${participantsHtml || '<div class="directory-empty">Nenhum participante disponível.</div>'}</div>` : ''}`;
   }
 
   function isProfileMuted(profile) {

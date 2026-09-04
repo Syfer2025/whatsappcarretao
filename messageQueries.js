@@ -622,17 +622,6 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
   return db.prepare(`
     WITH inbox_baseline(baseline_at, baseline_message_id) AS (VALUES (?, ?))
     SELECT c.*,
-           -- O WhatsApp Web endereca por @lid e a coluna phone guarda esse
-           -- identificador (numero longo que NAO e telefone). O telefone real
-           -- fica em conversation_identifiers como @c.us. A coluna nao e
-           -- trocada porque o envio depende dela
-           -- (messageSender.js: getSendChatId(conversation.phone)).
-           (SELECT ci.identifier
-              FROM conversation_identifiers ci
-              WHERE ci.conversation_id = c.id
-                AND ci.identifier LIKE '%@c.us'
-              ORDER BY LENGTH(ci.identifier), ci.identifier
-              LIMIT 1) AS display_phone,
            v.name AS vendor_name,
            s.name AS sector_name,
            ${messagePreviewSql('latest')} AS last_message_preview,
@@ -817,17 +806,6 @@ function searchVisibleContent({ db, user, q = '', mediaType = '', limit = 30 }) 
 
   const conversations = db.prepare(`
     SELECT c.*,
-           -- O WhatsApp Web endereca por @lid e a coluna phone guarda esse
-           -- identificador (numero longo que NAO e telefone). O telefone real
-           -- fica em conversation_identifiers como @c.us. A coluna nao e
-           -- trocada porque o envio depende dela
-           -- (messageSender.js: getSendChatId(conversation.phone)).
-           (SELECT ci.identifier
-              FROM conversation_identifiers ci
-              WHERE ci.conversation_id = c.id
-                AND ci.identifier LIKE '%@c.us'
-              ORDER BY LENGTH(ci.identifier), ci.identifier
-              LIMIT 1) AS display_phone,
            v.name AS vendor_name,
            s.name AS sector_name,
            cus.pinned_at,

@@ -2,7 +2,41 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { ensureSchema } = require('./schema');
+const { SCHEMA_VERSION, ensureSchema } = require('./schema');
+
+// Regressao 04/set/2026: o telefone de exibicao tinha sido resolvido por
+// subselect em duas consultas, e o painel de perfil — que faz SELECT * — ficou
+// de fora, continuando a mostrar o @lid. Denormalizar em coluna conserta todo
+// caminho de leitura de uma vez.
+test('display_phone existe como coluna e nasce preenchida do @c.us', () => {
+  const Database = require('better-sqlite3');
+  const { ensureSchema } = require('./schema');
+  const db = new Database(':memory:');
+  ensureSchema(db);
+
+  const colunas = db.prepare('PRAGMA table_info(conversations)').all().map(c => c.name);
+  assert.ok(colunas.includes('display_phone'), 'conversations deve ter display_phone');
+  assert.ok(colunas.includes('phone'), 'phone continua existindo: o envio depende dela');
+
+  // Conversa endereçada por @lid, com o telefone real entre os identificadores.
+  db.prepare("INSERT INTO conversations (id, phone) VALUES (1, '14757641879637@lid')").run();
+  const { linkConversationIdentifiers } = require('./conversationIdentity');
+  linkConversationIdentifiers(db, 1, ['14757641879637@lid', '554399524886@c.us']);
+
+  const conv = db.prepare('SELECT phone, display_phone FROM conversations WHERE id = 1').get();
+  assert.equal(conv.phone, '14757641879637@lid', 'phone nao deve ser reescrita');
+  assert.equal(conv.display_phone, '554399524886@c.us', 'display_phone deve trazer o @c.us');
+
+  // Sem @c.us conhecido, fica vazia — e a tela mostra "nao disponivel", nunca
+  // um numero inventado.
+  db.prepare("INSERT INTO conversations (id, phone) VALUES (2, '99999999999999@lid')").run();
+  linkConversationIdentifiers(db, 2, ['99999999999999@lid']);
+  assert.equal(
+    db.prepare('SELECT display_phone FROM conversations WHERE id = 2').get().display_phone,
+    null
+  );
+  db.close();
+});
 
 test('creates base tables and message media support', () => {
   const db = new Database(':memory:');
@@ -235,7 +269,9 @@ test('adds production presence columns and analytics indexes', () => {
   assert.ok(vendorColumns.includes('last_seen_at'));
   assert.ok(messageIndexes.includes('idx_messages_created_at'));
   assert.ok(messageIndexes.includes('idx_messages_vendor_created'));
-  assert.equal(db.pragma('user_version', { simple: true }), 13);
+  // Referencia o valor da aplicacao: fixar o literal fazia toda subida de
+  // versao de esquema quebrar estes testes sem nenhum defeito real.
+  assert.equal(db.pragma('user_version', { simple: true }), SCHEMA_VERSION);
   db.close();
 });
 
@@ -288,7 +324,9 @@ test('migrates a version 2 read watermark and creates the chronological message 
     .get();
   assert.equal(state.last_read_message_at, '2026-07-07 10:05:00');
   assert.equal(index.name, 'idx_messages_conversation_created_id');
-  assert.equal(db.pragma('user_version', { simple: true }), 13);
+  // Referencia o valor da aplicacao: fixar o literal fazia toda subida de
+  // versao de esquema quebrar estes testes sem nenhum defeito real.
+  assert.equal(db.pragma('user_version', { simple: true }), SCHEMA_VERSION);
 
   db.close();
 });
@@ -523,7 +561,9 @@ test('migrates version 4 tenants with group, contact and archive support', () =>
   assert.equal(conversation.manually_started, 0);
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='contacts'").get());
   assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='group_participants'").get());
-  assert.equal(db.pragma('user_version', { simple: true }), 13);
+  // Referencia o valor da aplicacao: fixar o literal fazia toda subida de
+  // versao de esquema quebrar estes testes sem nenhum defeito real.
+  assert.equal(db.pragma('user_version', { simple: true }), SCHEMA_VERSION);
 
   db.close();
 });
@@ -577,7 +617,9 @@ test('version 10 migration snapshots the current vendor sector for legacy messag
   assert.equal(message.vendor_sector_id, 4);
   assert.ok(vendor.inbox_baseline_at);
   assert.equal(vendor.inbox_baseline_message_id, 11);
-  assert.equal(db.pragma('user_version', { simple: true }), 13);
+  // Referencia o valor da aplicacao: fixar o literal fazia toda subida de
+  // versao de esquema quebrar estes testes sem nenhum defeito real.
+  assert.equal(db.pragma('user_version', { simple: true }), SCHEMA_VERSION);
   db.close();
 });
 

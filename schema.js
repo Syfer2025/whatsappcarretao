@@ -1,6 +1,8 @@
 // Incremente ao mudar o schema abaixo. DBs já na versão atual pulam a migração
 // inteira (evita ~20 PRAGMAs/UPDATEs por abertura de banco em cada tenant).
-const SCHEMA_VERSION = 13;
+// 14 (04/set/2026): conversations.display_phone — telefone real resolvido do
+// @c.us, porque a coluna phone passou a guardar o identificador @lid.
+const SCHEMA_VERSION = 14;
 
 // Pragmas de performance/robustez aplicados a TODO banco aberto.
 // Em producao usamos synchronous=FULL: um crash do host nao deve confirmar ao
@@ -255,6 +257,27 @@ function ensureSchema(db) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_sectors_name_nocase
       ON sectors(name COLLATE NOCASE);
   `);
+    // O WhatsApp Web passou a enderecar por @lid e a coluna phone guarda esse
+    // identificador — um numero longo que NAO e telefone e nao pode ser
+    // mostrado ao atendente. O telefone real fica em conversation_identifiers
+    // como @c.us. Denormalizado aqui de proposito: a alternativa era adicionar
+    // um subselect em cada consulta de conversa (ha mais de dez), e bastava
+    // esquecer uma para a tela voltar a mostrar o @lid — foi o que aconteceu
+    // com o painel de perfil em 04/set/2026. Com a coluna, todo SELECT * ja
+    // traz o valor. A coluna phone segue intocada porque o ENVIO depende dela.
+    ensureColumn(db, 'conversations', 'display_phone', 'TEXT');
+    db.prepare(`
+      UPDATE conversations
+      SET display_phone = (
+        SELECT ci.identifier
+        FROM conversation_identifiers ci
+        WHERE ci.conversation_id = conversations.id
+          AND ci.identifier LIKE '%@c.us'
+        ORDER BY LENGTH(ci.identifier), ci.identifier
+        LIMIT 1
+      )
+      WHERE display_phone IS NULL
+    `).run();
     ensureColumn(db, 'conversations', 'profile_pic_url', 'TEXT');
     ensureColumn(db, 'conversations', 'sector_id', 'INTEGER REFERENCES sectors(id)');
     ensureColumn(db, 'conversations', 'last_activity_at', 'DATETIME');

@@ -30,8 +30,24 @@ function linkConversationIdentifiers(db, conversationId, identifiers) {
     INSERT OR IGNORE INTO conversation_identifiers (identifier, conversation_id)
     VALUES (?, ?)
   `);
+  // Sempre que um @c.us aparece, ele passa a ser o telefone de exibicao. Assim
+  // a coluna nasce preenchida para conversa nova, sem depender do backfill.
+  const atualizarExibicao = db.prepare(`
+    UPDATE conversations
+    SET display_phone = (
+      SELECT ci.identifier
+      FROM conversation_identifiers ci
+      WHERE ci.conversation_id = ?
+        AND ci.identifier LIKE '%@c.us'
+      ORDER BY LENGTH(ci.identifier), ci.identifier
+      LIMIT 1
+    )
+    WHERE id = ?
+      AND (display_phone IS NULL OR display_phone = '')
+  `);
   const linkAll = db.transaction(() => {
     for (const identifier of ids) insert.run(identifier, conversationId);
+    atualizarExibicao.run(conversationId, conversationId);
   });
   linkAll();
 }

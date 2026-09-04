@@ -97,10 +97,21 @@ test('telefone exibido vem do @c.us resolvido e nunca de um @lid', () => {
     );
   }
 
-  // E o servidor precisa resolver o @c.us para a tela ter o que mostrar.
-  const q = fs.readFileSync(require.resolve('./messageQueries.js'), 'utf8');
-  assert.match(q, /AS display_phone/);
-  assert.match(q, /identifier LIKE '%@c\.us'/);
+  // E o servidor precisa resolver o @c.us para a tela ter o que mostrar. A
+  // resolucao vive no schema, como coluna: por subselect em cada consulta era
+  // facil esquecer uma — foi o que deixou o painel de perfil mostrando @lid.
+  const schema = fs.readFileSync(require.resolve('./schema.js'), 'utf8');
+  assert.match(schema, /ensureColumn\(db, 'conversations', 'display_phone', 'TEXT'\)/);
+  assert.match(schema, /identifier LIKE '%@c\.us'/);
+
+  // E o perfil (o que abre ao clicar na imagem) tambem precisa do helper.
+  const dir2 = fs.readFileSync(require.resolve('./frontend/chat-directory.js'), 'utf8');
+  assert.doesNotMatch(
+    dir2,
+    /formatPhone\(profile\.phone\)/,
+    'o painel de perfil nao deve formatar profile.phone direto (e o @lid)'
+  );
+  assert.match(dir2, /formatPhone\(conversationPhone\(profile\)\)/);
 });
 
 test('external links cannot execute script URLs or control their opener', () => {
