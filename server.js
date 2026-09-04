@@ -156,6 +156,9 @@ const {
   abortMessageQueues,
   discardTenantMessageQueue,
   recoverInterruptedOutboundMessages
+,
+  saveMessageLocation,
+  inboundLocationFrom
 } = require('./messageSender');
 const {
   hideMessageForUser,
@@ -285,6 +288,11 @@ const SHUTDOWN_HTTP_TIMEOUT_MS = Number(process.env.SHUTDOWN_HTTP_TIMEOUT_MS || 
 const SHUTDOWN_WHATSAPP_TIMEOUT_MS = Number(process.env.SHUTDOWN_WHATSAPP_TIMEOUT_MS || 10000);
 const DATA_ROOT = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const MEDIA_ROOT = path.resolve(process.env.MEDIA_ROOT || path.join(__dirname, 'media'));
+const mapTiles = require('./mapTiles');
+// Cache de mapa fora de MEDIA_ROOT: nao e midia de conversa e nao deve entrar
+// em backup, quota de tenant nem auditoria de integridade de midia.
+const MAP_CACHE_ROOT = path.resolve(process.env.MAP_CACHE_ROOT || path.join(__dirname, 'data', 'map-cache'));
+mapTiles.ensureCacheRoot(MAP_CACHE_ROOT);
 const WA_AUTH_ROOT = path.resolve(process.env.WA_AUTH_DIR || path.join(__dirname, '.wwebjs_auth'));
 const MIN_RUNTIME_FREE_DISK_BYTES = Number(process.env.MIN_RUNTIME_FREE_DISK_MB
   || (process.env.NODE_ENV === 'production' ? 1024 : 64)) * 1024 * 1024;
@@ -1234,6 +1242,31 @@ function findMediaConversation(filename) {
 function safeHeaderFilename(filename) {
   return filename.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 160) || 'media';
 }
+
+// Quadradinho de mapa, buscado pelo servidor e servido como imagem propria.
+// Autenticado como qualquer outra midia: a coordenada de um cliente nao pode
+// ficar acessivel a quem nao esta logado no painel.
+app.get('/api/maps/tile/:z/:x/:y', tenantAuthMiddleware(), async (req, res) => {
+  try {
+    const { buffer, fromCache } = await mapTiles.getTile(
+      { z: req.params.z, x: req.params.x, y: String(req.params.y).replace(/\.png$/i, '') },
+      { cacheRoot: MAP_CACHE_ROOT }
+    );
+    res.setHeader('Content-Type', 'image/png');
+    // Tile de mapa nao muda: cache longo no navegador evita repetir a busca.
+    res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
+    res.setHeader('X-Tile-Cache', fromCache ? 'hit' : 'miss');
+    return res.end(buffer);
+  } catch (err) {
+    const invalido = /invalid[ao]/i.test(String(err?.message || ''));
+    if (!invalido) {
+      logger.warn({ err, z: req.params.z, x: req.params.x, y: req.params.y }, 'Falha ao obter tile de mapa');
+    }
+    // 404 e nao 500: a tela troca o mapa por um cartao simples e o atendente
+    // continua vendo a localizacao.
+    return res.status(invalido ? 400 : 404).json({ error: 'Mapa indisponivel' });
+  }
+});
 
 app.get('/media/:filename', tenantAuthMiddleware(), (req, res, next) => {
   const filename = path.basename(String(req.params.filename || ''));
@@ -5827,6 +5860,14 @@ async function handleIncomingMessage(msg, { client, source = 'message' } = {}) {
         messageId = inserted
           ? result.lastInsertRowid
           : db.prepare('SELECT id FROM messages WHERE external_id = ?').get(externalId)?.id || null;
+      }
+
+      // Localizacao mandada pelo CLIENTE: a whatsapp-web.js expoe msg.location
+      // e o painel nao lia, entao a mensagem entrava sem coordenada e sem
+      // texto — aparecia em branco na conversa.
+      const localizacaoRecebida = inboundLocationFrom(msg);
+      if (localizacaoRecebida && messageId) {
+        saveMessageLocation(db, messageId, localizacaoRecebida);
       }
       db.prepare(`
         UPDATE conversations

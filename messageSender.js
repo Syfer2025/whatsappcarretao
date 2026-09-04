@@ -808,6 +808,40 @@ function isTransientWhatsAppSendError(err) {
   ].some(fragment => message.includes(fragment));
 }
 
+// Grava a coordenada na linha da mensagem. Feito por UPDATE, e nao somando
+// colunas nos INSERTs: existem tres caminhos de persistencia (envio, tempo
+// real e importacao) com listas de colunas diferentes, e um UPDATE unico serve
+// aos tres sem risco de desalinhar parametro posicional.
+function saveMessageLocation(db, messageId, location) {
+  if (!db || !messageId || !location) return false;
+  if (!messagesHaveColumn(db, 'location_latitude')) return false;
+  db.prepare(`
+    UPDATE messages
+    SET location_latitude = ?, location_longitude = ?
+    WHERE id = ?
+  `).run(location.latitude, location.longitude, messageId);
+  return true;
+}
+
+// Le a localizacao de uma mensagem RECEBIDA. A whatsapp-web.js expoe msg.location
+// para o tipo "location", e o painel simplesmente nao lia: localizacao de
+// cliente chegava sem coordenada e sem texto — mensagem em branco na conversa.
+function inboundLocationFrom(msg) {
+  const bruto = msg?.location;
+  if (!bruto) return null;
+  try {
+    return normalizeLocationPayload({
+      latitude: bruto.latitude ?? bruto.lat,
+      longitude: bruto.longitude ?? bruto.lng ?? bruto.long,
+      description: bruto.description || bruto.name || ''
+    });
+  } catch {
+    // Coordenada estranha do WhatsApp nao pode derrubar o recebimento da
+    // mensagem: perde-se o mapa, nao a mensagem.
+    return null;
+  }
+}
+
 // Localizacao enviada pelo atendente. Validada aqui, e nao so no navegador:
 // coordenada fora de faixa faz o WhatsApp recusar a mensagem inteira, e o
 // atendente veria "falha ao enviar" sem entender o motivo.
@@ -904,6 +938,8 @@ async function sendOutboundMessage({
     return existing;
   }
   let activityAt = getMessageById(db, messageId)?.created_at || toSqlDate(Date.now() / 1000);
+  // Coordenada na linha, para o painel desenhar o mapa sem interpretar texto.
+  if (location) saveMessageLocation(db, messageId, location);
 
   let mediaFields = null;
   const whatsAppContent = buildWhatsAppContent(content, getVendorDisplayName(db, user));
@@ -1007,6 +1043,8 @@ async function sendOutboundMessage({
 }
 
 module.exports = {
+  saveMessageLocation,
+  inboundLocationFrom,
   normalizeLocationPayload,
   locationHistoryText,
   estimatePayloadQueueBytes,

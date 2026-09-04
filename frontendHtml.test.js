@@ -70,6 +70,47 @@ for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
 // "+14757641879637" — um telefone inexistente na tela do atendente.
 // Recursos pedidos em 04/set/2026. Os tres testes exigem PARIDADE entre
 // admin.html e vendor.html: correcao que chega so no dono e meia correcao.
+// Pedido em 04/set/2026: no painel a localizacao aparecia como texto com URL,
+// enquanto no WhatsApp do cliente aparece o mapa.
+test('localizacao aparece como mapa nas duas telas, servido pelo proprio servidor', () => {
+  const fs = require('node:fs');
+  const modulo = fs.readFileSync(require.resolve('./frontend/message-location.js'), 'utf8');
+
+  // Tile pelo servidor: a CSP so permite 'self' e a coordenada do cliente nao
+  // pode sair do navegador do atendente para um terceiro.
+  assert.match(modulo, /\/api\/maps\/tile\//);
+  assert.doesNotMatch(
+    modulo,
+    /https?:\/\/(tile|[a-z]\.tile)\.openstreetmap/,
+    'o navegador nao deve buscar tile direto de fora'
+  );
+  // Licenca do OpenStreetMap exige atribuicao visivel.
+  assert.match(modulo, /OpenStreetMap/);
+  // Mapa fora do ar nao pode deixar quadrado quebrado na conversa.
+  assert.match(modulo, /onerror=/);
+  // Coordenada fora de faixa nao desenha mapa nenhum.
+  assert.match(modulo, /latitude < -90 \|\| latitude > 90/);
+
+  for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {
+    const html = fs.readFileSync(require.resolve(arquivo), 'utf8');
+    assert.match(html, /message-location\.js/, `${arquivo}: deve carregar o modulo`);
+    // Precisa sair ANTES da logica de midia: localizacao nao tem media_url e
+    // cairia no aviso de "Sincronizando midia...".
+    const render = html.slice(html.indexOf('function renderMedia(m) {'), html.indexOf('function renderMedia(m) {') + 420);
+    assert.match(render, /MessageLocation\?\.render\(m\)/, `${arquivo}: renderMedia deve delegar`);
+    assert.ok(
+      render.indexOf('MessageLocation') < render.indexOf('media_unavailable'),
+      `${arquivo}: o mapa deve sair antes da checagem de midia`
+    );
+  }
+
+  // A coordenada precisa vir em coluna: interpretar o texto quebraria a
+  // qualquer ajuste de redacao da mensagem.
+  const schema = fs.readFileSync(require.resolve('./schema.js'), 'utf8');
+  assert.match(schema, /ensureColumn\(db, 'messages', 'location_latitude', 'REAL'\)/);
+  assert.match(schema, /ensureColumn\(db, 'messages', 'location_longitude', 'REAL'\)/);
+});
+
 test('telefone aparece no cabecalho da conversa, resolvido e sem @lid', () => {
   const fs = require('node:fs');
   for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {

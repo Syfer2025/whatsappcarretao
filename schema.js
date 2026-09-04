@@ -1,8 +1,10 @@
 // Incremente ao mudar o schema abaixo. DBs já na versão atual pulam a migração
 // inteira (evita ~20 PRAGMAs/UPDATEs por abertura de banco em cada tenant).
+// 15 (04/set/2026): messages.location_latitude/longitude — coordenada em
+// coluna para o painel desenhar o mapa, em vez de interpretar o texto.
 // 14 (04/set/2026): conversations.display_phone — telefone real resolvido do
 // @c.us, porque a coluna phone passou a guardar o identificador @lid.
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 // Pragmas de performance/robustez aplicados a TODO banco aberto.
 // Em producao usamos synchronous=FULL: um crash do host nao deve confirmar ao
@@ -265,6 +267,12 @@ function ensureSchema(db) {
     // esquecer uma para a tela voltar a mostrar o @lid — foi o que aconteceu
     // com o painel de perfil em 04/set/2026. Com a coluna, todo SELECT * ja
     // traz o valor. A coluna phone segue intocada porque o ENVIO depende dela.
+    // Coordenada guardada em coluna, nao extraida do texto: o conteudo e feito
+    // para humano ler e mudaria a qualquer ajuste de redacao, quebrando o mapa.
+    // Serve para os dois sentidos — localizacao que o atendente envia e
+    // localizacao que o cliente manda.
+    ensureColumn(db, 'messages', 'location_latitude', 'REAL');
+    ensureColumn(db, 'messages', 'location_longitude', 'REAL');
     ensureColumn(db, 'conversations', 'display_phone', 'TEXT');
     db.prepare(`
       UPDATE conversations

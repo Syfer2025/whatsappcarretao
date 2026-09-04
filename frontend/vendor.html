@@ -504,6 +504,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 <script src="/chat-notifications.js"></script>
 <script src="/composer-attachments.js"></script>
     <script src="/composer-location.js"></script>
+    <script src="/message-location.js"></script>
     <script src="/chat-directory.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/sticker-library.js"></script>
@@ -869,6 +870,11 @@ function isUnavailableMediaText(value) {
 }
 
 function renderMedia(m) {
+  // Localizacao tem bloco proprio (mapa + botao). Sai antes da logica de midia
+  // porque nao e anexo: nao tem media_url e cairia no "Sincronizando midia...".
+  const mapa = window.MessageLocation?.render(m);
+  if (mapa) return mapa;
+
   if (!m.media_url && Number(m.media_unavailable) === 1 && !isUnavailableMediaText(m.content)) {
     return '<div class="media-block media-unavailable">Mídia indisponível</div>';
   }
