@@ -1,4 +1,4 @@
-const { MessageMedia } = require('whatsapp-web.js');
+const { MessageMedia, Location } = require('whatsapp-web.js');
 const { getSendChatId, getMessageExternalId, toSqlDate } = require('./whatsappUtils');
 const { saveMessageMedia } = require('./mediaStorage');
 const { prepareVoiceMediaForSend: defaultPrepareVoiceMediaForSend } = require('./audioTranscoder');
@@ -400,8 +400,19 @@ function normalizeBase64(data) {
 }
 
 function validatePayload(payload) {
-  const content = normalizeContent(payload?.content);
+  const location = normalizeLocationPayload(payload?.location);
+  // Localizacao e um terceiro tipo valido de mensagem, ao lado de texto e
+  // anexo. Sem isto um envio de localizacao pura era recusado por "mensagem
+  // obrigatoria". E o historico recebe um texto legivel com o link do mapa,
+  // porque o WhatsApp entrega localizacao como tipo proprio e a conversa
+  // apareceria em branco.
+  const content = location
+    ? (normalizeContent(payload?.content) || locationHistoryText(location))
+    : normalizeContent(payload?.content);
   const media = payload?.media || null;
+  if (location && media) {
+    throw new Error('Envie a localizacao sem anexo');
+  }
   if (!content && !media) {
     throw new Error('Mensagem ou anexo obrigatório');
   }
@@ -421,7 +432,7 @@ function validatePayload(payload) {
       throw new Error(`Anexo excede o limite de ${maxMediaSize} bytes`);
     }
   }
-  return { content, media };
+  return { content, media, location };
 }
 
 function getMessageById(db, id) {
@@ -797,6 +808,36 @@ function isTransientWhatsAppSendError(err) {
   ].some(fragment => message.includes(fragment));
 }
 
+// Localizacao enviada pelo atendente. Validada aqui, e nao so no navegador:
+// coordenada fora de faixa faz o WhatsApp recusar a mensagem inteira, e o
+// atendente veria "falha ao enviar" sem entender o motivo.
+function normalizeLocationPayload(location) {
+  if (!location) return null;
+  const latitude = Number(location.latitude);
+  const longitude = Number(location.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error('Localizacao invalida: latitude e longitude precisam ser numeros');
+  }
+  if (latitude < -90 || latitude > 90) {
+    throw new Error('Localizacao invalida: latitude fora da faixa -90..90');
+  }
+  if (longitude < -180 || longitude > 180) {
+    throw new Error('Localizacao invalida: longitude fora da faixa -180..180');
+  }
+  const description = typeof location.description === 'string'
+    ? location.description.trim().slice(0, 300)
+    : '';
+  return { latitude, longitude, description };
+}
+
+// Texto guardado no historico. Sem isso a conversa mostraria uma mensagem
+// vazia: o WhatsApp entrega localizacao como tipo proprio, nao como texto.
+function locationHistoryText({ latitude, longitude, description }) {
+  const coordenadas = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+  const link = `https://www.google.com/maps/search/?api=1&query=${coordenadas}`;
+  return description ? `Localizacao: ${description} - ${link}` : `Localizacao: ${link}`;
+}
+
 async function sendOutboundMessage({
   db,
   whatsappClient,
@@ -822,7 +863,7 @@ async function sendOutboundMessage({
     }
   }
 
-  const { content, media } = validatePayload(payload);
+  const { content, media, location } = validatePayload(payload);
   const tenantKey = queueKey(user?.tenant_id);
   const estimatedQueueBytes = estimatePayloadQueueBytes({ content, media });
   // Faça todas as recusas determinísticas antes de criar a linha durável. Se
@@ -866,7 +907,11 @@ async function sendOutboundMessage({
 
   let mediaFields = null;
   const whatsAppContent = buildWhatsAppContent(content, getVendorDisplayName(db, user));
-  let sendContent = whatsAppContent;
+  // Localizacao nao aceita prefixo de assinatura do vendedor: o WhatsApp
+  // espera um objeto Location, nao texto.
+  let sendContent = location
+    ? new Location(location.latitude, location.longitude, location.description || undefined)
+    : whatsAppContent;
 
   try {
     // Toda a preparação entra na mesma fila do envio. Assim um texto posterior
@@ -962,6 +1007,8 @@ async function sendOutboundMessage({
 }
 
 module.exports = {
+  normalizeLocationPayload,
+  locationHistoryText,
   estimatePayloadQueueBytes,
   getMaxGlobalMessageQueueBytes,
   getMaxMessageQueueBytes,

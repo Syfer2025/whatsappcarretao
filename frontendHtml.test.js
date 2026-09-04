@@ -68,6 +68,69 @@ for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
 // Regressao 04/set/2026: o WhatsApp Web passou a enderecar por @lid e a coluna
 // phone guarda esse identificador. formatPhone tirava o sufixo e devolvia
 // "+14757641879637" — um telefone inexistente na tela do atendente.
+// Recursos pedidos em 04/set/2026. Os tres testes exigem PARIDADE entre
+// admin.html e vendor.html: correcao que chega so no dono e meia correcao.
+test('telefone aparece no cabecalho da conversa, resolvido e sem @lid', () => {
+  const fs = require('node:fs');
+  for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {
+    const html = fs.readFileSync(require.resolve(arquivo), 'utf8');
+    assert.match(html, /id="chatPhone"/, `${arquivo}: elemento do telefone`);
+    assert.match(
+      html,
+      /chatPhone'\)\.textContent =\s*\n?\s*window\.ChatDirectory\?\.formatPhone\(window\.ChatDirectory\?\.conversationPhone\(conv\)\)/,
+      `${arquivo}: cabecalho deve usar o telefone resolvido`
+    );
+    assert.doesNotMatch(
+      html,
+      /chatPhone'\)\.textContent = conv\?\.phone/,
+      `${arquivo}: nao deve exibir conv.phone cru (e o @lid)`
+    );
+  }
+});
+
+test('arrastar-e-soltar e colar imagem entram pelo pipeline do botao de anexo', () => {
+  const fs = require('node:fs');
+  const modulo = fs.readFileSync(require.resolve('./frontend/composer-attachments.js'), 'utf8');
+
+  for (const evento of ['dragenter', 'dragover', 'dragleave', 'drop', 'paste']) {
+    assert.match(modulo, new RegExp(`'${evento}'`), `deve tratar ${evento}`);
+  }
+  // Sem preventDefault no drop o navegador abre o arquivo e o atendente perde a tela.
+  assert.match(modulo, /event\.preventDefault\(\)/);
+  // Nao pode roubar Ctrl+V de outro campo de texto.
+  assert.match(modulo, /isContentEditable/);
+
+  for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {
+    const html = fs.readFileSync(require.resolve(arquivo), 'utf8');
+    assert.match(html, /composer-attachments\.js/, `${arquivo}: deve carregar o modulo`);
+    // Reusa selectedFiles + renderFilePreview: nao pode existir caminho de
+    // envio paralelo, que escaparia das validacoes ja existentes.
+    assert.match(html, /selectedFiles = \[\s*\n?\s*\.\.\.selectedFiles/, `${arquivo}: deve alimentar selectedFiles`);
+    assert.match(html, /renderFilePreview\(\)/, `${arquivo}: deve usar a previa existente`);
+  }
+});
+
+test('envio de localizacao existe nas duas telas e valida a coordenada', () => {
+  const fs = require('node:fs');
+  const modulo = fs.readFileSync(require.resolve('./frontend/composer-location.js'), 'utf8');
+  assert.match(modulo, /getCurrentPosition/);
+  // Mensagem por causa: permissao negada, sem sinal e timeout sao problemas
+  // diferentes para o atendente resolver.
+  assert.match(modulo, /Permissao de localizacao negada/);
+  assert.match(modulo, /window\.confirm/, 'compartilhar posicao fisica precisa de confirmacao');
+  assert.match(modulo, /button\.disabled = true/, 'precisa de estado de carregando');
+
+  for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {
+    const html = fs.readFileSync(require.resolve(arquivo), 'utf8');
+    assert.match(html, /composer-location\.js/, `${arquivo}: deve carregar o modulo`);
+    assert.match(html, /id="btnLocation"/, `${arquivo}: deve ter o botao`);
+    assert.match(html, /aria-label="Enviar localizacao atual"/, `${arquivo}: botao precisa de rotulo acessivel`);
+    assert.match(html, /function sendLocation\(button\)/, `${arquivo}: deve ter a funcao`);
+    // Icone, nao emoji.
+    assert.doesNotMatch(html, /title="Enviar localizacao atual"[^>]*>\s*[\u{1F300}-\u{1FAFF}]/u, `${arquivo}: sem emoji como icone`);
+  }
+});
+
 test('telefone exibido vem do @c.us resolvido e nunca de um @lid', () => {
   const fs = require('node:fs');
   const dir = fs.readFileSync(require.resolve('./frontend/chat-directory.js'), 'utf8');

@@ -25,6 +25,35 @@ function createDb() {
   return db;
 }
 
+// Recurso pedido em 04/set/2026: enviar a localizacao atual do atendente.
+test('localizacao e um tipo valido de mensagem e a coordenada e validada', () => {
+  const { normalizeLocationPayload, locationHistoryText } = require('./messageSender');
+
+  const ok = normalizeLocationPayload({ latitude: '-23.5505', longitude: '-46.6333', description: '  Loja  ' });
+  assert.equal(ok.latitude, -23.5505);
+  assert.equal(ok.longitude, -46.6333);
+  assert.equal(ok.description, 'Loja', 'descricao deve vir aparada');
+
+  assert.equal(normalizeLocationPayload(null), null, 'ausencia nao e erro: a maioria das mensagens nao tem local');
+
+  // Coordenada invalida barrada no servidor, nao so no navegador: o WhatsApp
+  // recusaria a mensagem inteira e o atendente veria falha sem motivo.
+  assert.throws(() => normalizeLocationPayload({ latitude: 91, longitude: 0 }), /latitude fora da faixa/);
+  assert.throws(() => normalizeLocationPayload({ latitude: -91, longitude: 0 }), /latitude fora da faixa/);
+  assert.throws(() => normalizeLocationPayload({ latitude: 0, longitude: 181 }), /longitude fora da faixa/);
+  assert.throws(() => normalizeLocationPayload({ latitude: 'norte', longitude: 0 }), /precisam ser numeros/);
+
+  // O historico precisa de texto legivel: o WhatsApp entrega localizacao como
+  // tipo proprio e a conversa apareceria em branco.
+  const texto = locationHistoryText({ latitude: -23.5505, longitude: -46.6333, description: '' });
+  assert.match(texto, /^Localizacao: https:\/\/www\.google\.com\/maps/);
+  assert.match(texto, /-23\.550500,-46\.633300/);
+  assert.match(
+    locationHistoryText({ latitude: 1, longitude: 2, description: 'Deposito' }),
+    /^Localizacao: Deposito - https/
+  );
+});
+
 test('sends text with emojis and marks message as sent', async () => {
   const db = createDb();
   db.prepare("INSERT INTO vendors (id, name, username, password) VALUES (7, 'Vendedor', 'vend', 'hash')")
