@@ -65,6 +65,44 @@ for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
   });
 }
 
+// Regressao 04/set/2026: o WhatsApp Web passou a enderecar por @lid e a coluna
+// phone guarda esse identificador. formatPhone tirava o sufixo e devolvia
+// "+14757641879637" — um telefone inexistente na tela do atendente.
+test('telefone exibido vem do @c.us resolvido e nunca de um @lid', () => {
+  const fs = require('node:fs');
+  const dir = fs.readFileSync(require.resolve('./frontend/chat-directory.js'), 'utf8');
+
+  assert.match(dir, /function isLidIdentifier/);
+  assert.match(dir, /function conversationPhone/);
+  // formatPhone tem de recusar @lid ANTES de extrair digitos, senao ja inventou.
+  const fp = dir.slice(dir.indexOf('function formatPhone'), dir.indexOf('function formatPhone') + 260);
+  assert.ok(
+    fp.indexOf('isLidIdentifier') < fp.indexOf("replace(/\\D/g"),
+    'formatPhone deve descartar @lid antes de transformar em digitos'
+  );
+  assert.match(dir, /conversationPhone,/, 'helper precisa ser exportado');
+
+  // As DUAS telas — admin e agente — precisam usar o helper. A correcao nao
+  // pode valer so para o super admin.
+  for (const arquivo of ['./frontend/admin.html', './frontend/vendor.html']) {
+    const html = fs.readFileSync(require.resolve(arquivo), 'utf8');
+    assert.ok(
+      (html.match(/conversationPhone/g) || []).length >= 3,
+      `${arquivo} deve usar conversationPhone na lista, na previa e na busca`
+    );
+    assert.doesNotMatch(
+      html,
+      /formatPhone\(conversation\.phone/,
+      `${arquivo} nao deve formatar conversation.phone direto (e o @lid)`
+    );
+  }
+
+  // E o servidor precisa resolver o @c.us para a tela ter o que mostrar.
+  const q = fs.readFileSync(require.resolve('./messageQueries.js'), 'utf8');
+  assert.match(q, /AS display_phone/);
+  assert.match(q, /identifier LIKE '%@c\.us'/);
+});
+
 test('external links cannot execute script URLs or control their opener', () => {
   for (const file of ['frontend/admin.html', 'frontend/vendor.html']) {
     const html = fs.readFileSync(file, 'utf8');

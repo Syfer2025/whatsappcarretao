@@ -16,7 +16,25 @@
     }[character]));
   }
 
+  // O WhatsApp Web passou a enderecar por @lid: um identificador longo que NAO
+  // e telefone (ex.: 14757641879637@lid). Formata-lo como numero produzia
+  // "+14757641879637" na tela do atendente — relatado em 04/set/2026 como
+  // "varios numeros misturados esquisitos". Um telefone falso e pior que
+  // nenhum: quem le tenta ligar.
+  function isLidIdentifier(value) {
+    return /@lid$/i.test(String(value || '').trim());
+  }
+
+  // Telefone para EXIBIR de uma conversa. O servidor resolve o @c.us real em
+  // display_phone (messageQueries.js); a coluna phone guarda o @lid e continua
+  // sendo a chave de envio, por isso nao serve para mostrar.
+  function conversationPhone(conversation) {
+    const candidato = conversation?.display_phone || conversation?.phone || '';
+    return isLidIdentifier(candidato) ? '' : candidato;
+  }
+
   function formatPhone(value) {
+    if (isLidIdentifier(value)) return '';
     const digits = String(value || '').replace(/\D/g, '');
     if (!digits) return String(value || '').replace(/@(c\.us|lid|g\.us)$/i, '');
     if (digits.length === 13 && digits.startsWith('55')) {
@@ -382,6 +400,8 @@
     openProfile,
     closeProfile,
     setArchived,
-    formatPhone
+    formatPhone,
+    conversationPhone,
+    isLidIdentifier
   };
 })(window);

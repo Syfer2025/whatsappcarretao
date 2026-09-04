@@ -1850,11 +1850,14 @@ function renderForwardDestinations(query = '') {
   if (!list) return;
   const needle = String(query || '').trim().toLocaleLowerCase('pt-BR');
   const destinations = forwardConversationOptions.filter(conversation => {
-    const haystack = `${displayName(conversation)} ${conversation.phone || ''}`.toLocaleLowerCase('pt-BR');
+    // Busca considera o telefone real E o identificador @lid: o atendente
+    // digita o numero do cliente, nao o @lid.
+    const telefoneBusca = window.ChatDirectory?.conversationPhone(conversation) || '';
+    const haystack = `${displayName(conversation)} ${telefoneBusca} ${conversation.phone || ''}`.toLocaleLowerCase('pt-BR');
     return !needle || haystack.includes(needle);
   });
   list.innerHTML = destinations.map(conversation => `<button type="button" class="forward-destination" onclick="forwardMessageTo(event, ${conversation.id})">
-    ${renderAvatar(conversation)}<span><strong>${escapeHtml(displayName(conversation))}</strong><br><small>${escapeHtml(window.ChatDirectory?.formatPhone(conversation.phone || '') || conversation.phone || '')}</small></span>
+    ${renderAvatar(conversation)}<span><strong>${escapeHtml(displayName(conversation))}</strong><br><small>${escapeHtml(window.ChatDirectory?.formatPhone(window.ChatDirectory?.conversationPhone(conversation)) || '')}</small></span>
   </button>`).join('') || '<div class="forward-empty">Nenhuma conversa encontrada.</div>';
   setupAvatarFallbacks(list);
 }
@@ -2221,7 +2224,7 @@ function renderSearchResults(data) {
       ${renderAvatar(c)}
       <div class="conv-details">
         <div class="name conv-title"><span>${escapeHtml(displayName(c))}</span>${renderUnreadBadge(c)}</div>
-        <div class="preview">${escapeHtml(c.phone || '')}</div>
+        <div class="preview">${escapeHtml(window.ChatDirectory?.formatPhone(window.ChatDirectory?.conversationPhone(c)) || '')}</div>
         <div class="meta">${escapeHtml(c.vendor_name || 'sem atendente')}</div>
       </div>
       ${conversationStateActions(c)}
