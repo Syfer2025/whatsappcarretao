@@ -418,7 +418,17 @@ function getConversationMessages({ db, user, conversationId, filters = {}, pagin
   const starJoin = messageStarJoin(user, joinParams);
   const userStateJoin = messageUserStateJoin(user, joinParams);
   if (userHasIdentity(user)) where.push('mus.hidden_at IS NULL');
-  const params = [...joinParams, conversationId, ...built.params];
+  // Filtra por dono aqui tambem, e nao so na rota.
+  //
+  // Hoje quem chama ja checou canAccessConversation antes. Mas isto recebe um id
+  // de conversa por parametro: qualquer chamada futura que esqueca a checagem
+  // devolveria a conversa inteira de outro vendedor. A funcao passa a ser segura
+  // sozinha, independentemente de quem chama.
+  const visibilidadeWhere = [];
+  const visibilidadeParams = [];
+  appendVendorVisibility(visibilidadeWhere, visibilidadeParams, user);
+  where.push(...visibilidadeWhere);
+  const params = [...joinParams, conversationId, ...built.params, ...visibilidadeParams];
   const limit = positiveInteger(pagination.limit);
   const beforeId = positiveInteger(pagination.beforeId);
   const aroundId = positiveInteger(pagination.aroundId);
