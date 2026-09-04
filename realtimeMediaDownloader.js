@@ -1,6 +1,7 @@
 'use strict';
 
 const { sleep, withTimeout } = require('./runtimeUtils');
+const { repairMessageId } = require('./whatsappUtils');
 
 function positiveInteger(value, fallback) {
   const parsed = Number(value);
@@ -60,6 +61,9 @@ async function downloadRealtimeMediaWithRetry({
       if (typeof candidate?.downloadMedia !== 'function') {
         throw new Error('Mensagem ainda não expõe downloadMedia');
       }
+      // Sem isto a lib entrega um id undefined para dentro da pagina e o
+      // download morre com excecao minificada — ver whatsappUtils.repairMessageId.
+      repairMessageId(candidate);
       const media = await withTimeout(
         () => candidate.downloadMedia(),
         downloadTimeoutMs,

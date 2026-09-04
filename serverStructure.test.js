@@ -3,6 +3,21 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const vm = require('node:vm');
 
+test('todo caminho de download de midia repara o id antes de chamar downloadMedia', () => {
+  const fs = require('node:fs');
+  for (const arquivo of ['historyImporter.js', 'realtimeMediaDownloader.js']) {
+    const source = fs.readFileSync(require.resolve(`./${arquivo}`), 'utf8');
+    assert.match(source, /repairMessageId/, `${arquivo} deve importar e usar repairMessageId`);
+    const posReparo = source.indexOf('repairMessageId(');
+    const posDownload = source.search(/(?:msg|candidate)\.downloadMedia\(\)/);
+    assert.ok(posReparo > -1 && posDownload > -1, `${arquivo}: pontos nao encontrados`);
+    assert.ok(
+      posReparo < posDownload,
+      `${arquivo}: o reparo do id tem de vir ANTES do downloadMedia`
+    );
+  }
+});
+
 test('boot restoration skips auth directories explicitly left at an unpaired QR', () => {
   const source = fs.readFileSync('server.js', 'utf8');
   assert.match(source, /await waManager\.hasRestorableSession\(tenant\.id\)/);

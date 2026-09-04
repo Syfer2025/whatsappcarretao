@@ -110,6 +110,30 @@ function serializedMessageId(rawId) {
   return participantId ? `${base}_${participantId}` : base;
 }
 
+// A whatsapp-web.js entrega `msg.id._serialized` para dentro da pagina em
+// Message.downloadMedia() (structures/Message.js: `}, this.id._serialized)`).
+// Com o campo renomeado pelo WhatsApp Web esse valor vai undefined, o
+// Msg.getMessagesById([undefined]) estoura no IndexedDB e o erro chega
+// minificado — era o "r"/"t" em "Erro ao baixar midia". Medido na sessao real
+// em 04/set/2026: sem o reparo, 0 de 5 midias recebidas baixavam; com ele, 3
+// de 5. Preenche o campo a partir das partes semanticas antes da chamada.
+function repairMessageId(msg) {
+  const id = msg?.id;
+  if (!id || typeof id !== 'object') return false;
+  if (typeof id._serialized === 'string' && id._serialized) return false;
+  const resolved = serializedMessageId(id);
+  if (!resolved) return false;
+  try {
+    id._serialized = resolved;
+    // Modulo CommonJS roda em modo nao-estrito: atribuir em objeto congelado
+    // falha em SILENCIO, sem lancar. Confirmar que gravou e o que separa
+    // "reparado" de "nao deu" — sem isso a funcao mentia devolvendo true.
+    return id._serialized === resolved;
+  } catch {
+    return false;
+  }
+}
+
 function getMessageExternalId(msg) {
   return serializedMessageId(msg?.id ?? msg);
 }
@@ -153,6 +177,7 @@ module.exports = {
   toSqlDateOrNull,
   getMessageExternalId,
   serializedMessageId,
+  repairMessageId,
   getMessageContent,
   shouldProcessMessageEvent,
   getWhatsAppMediaType,

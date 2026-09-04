@@ -7,6 +7,7 @@ const {
   toSqlDateOrNull,
   getMessageExternalId,
   serializedMessageId,
+  repairMessageId,
   getMessageContent,
   hasPotentialMedia
 } = require('./whatsappUtils');
@@ -130,6 +131,9 @@ async function buildMediaFields(msg, externalId, mediaRoot, logger, timeoutMs, n
   try {
     const downloadAndSave = async () => {
       assertKnownInboundMediaSize(msg);
+      // Sem isto a lib entrega um id undefined para dentro da pagina e o
+      // download morre com excecao minificada — ver whatsappUtils.repairMessageId.
+      repairMessageId(msg);
       const media = await withTimeout(msg.downloadMedia(), timeoutMs, 'downloadMedia');
       if (!media) {
         return { mediaFields: {}, mediaUnavailable: true };

@@ -10,6 +10,7 @@ const {
   toSqlDateOrNull,
   getMessageExternalId,
   serializedMessageId,
+  repairMessageId,
   getMessageContent,
   shouldProcessMessageEvent,
   getWhatsAppMediaType,
@@ -118,6 +119,30 @@ test('o campo serializado do proprio WhatsApp tem prioridade sobre a remontagem'
     }),
     'true_x@c.us_AUTORIDADE'
   );
+});
+
+// Regressao 04/set/2026: Message.downloadMedia() da whatsapp-web.js entrega
+// `this.id._serialized` para dentro da pagina. Renomeado o campo, ia undefined
+// e o download morria com excecao minificada. Medido: 0/5 antes, 3/5 depois.
+test('repara o id da mensagem antes do download de midia', () => {
+  const msg = { id: { fromMe: false, remote: '554499887766@c.us', id: 'ABC123' } };
+  assert.equal(repairMessageId(msg), true);
+  assert.equal(msg.id._serialized, 'false_554499887766@c.us_ABC123');
+});
+
+test('nao mexe no id quando ja existe campo serializado', () => {
+  const msg = { id: { _serialized: 'ja_esta_bom', fromMe: true, remote: 'x@c.us', id: 'Y' } };
+  assert.equal(repairMessageId(msg), false);
+  assert.equal(msg.id._serialized, 'ja_esta_bom');
+});
+
+test('reparo do id nunca lanca em entrada estranha ou objeto congelado', () => {
+  assert.equal(repairMessageId(null), false);
+  assert.equal(repairMessageId({}), false);
+  assert.equal(repairMessageId({ id: 'string-solta' }), false);
+  assert.equal(repairMessageId({ id: { remote: 'x@c.us' } }), false);
+  const congelado = { id: Object.freeze({ fromMe: false, remote: 'x@c.us', id: 'Y' }) };
+  assert.equal(repairMessageId(congelado), false, 'objeto congelado deve degradar sem lancar');
 });
 
 test('extracts stable message id and media fallback content', () => {
