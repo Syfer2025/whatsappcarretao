@@ -23,7 +23,27 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # Mesmo motivo do deploy.sh: `npm audit` devolve codigo 1 tanto para
+      # vulnerabilidade quanto para falha de rede, e um outage do registry
+      # pintava o CI de vermelho sem nada errado no codigo.
+      - name: Audit dependencies (retries on registry outage)
+        run: |
+          for tentativa in 1 2 3 4; do
+            if saida="$(npm audit --audit-level=high 2>&1)"; then
+              printf '%s\n' "$saida"
+              exit 0
+            fi
+            if printf '%s' "$saida" | grep -qiE 'audit endpoint returned an error|Service Unavailable|network timeout|ENOTFOUND|ECONNRESET|EAI_AGAIN'; then
+              echo "::warning::Endpoint de auditoria da npm indisponivel (tentativa $tentativa/4)"
+              sleep "$((tentativa * 15))"
+              continue
+            fi
+            printf '%s\n' "$saida"
+            echo "::error::Vulnerabilidade de severidade alta nas dependencias"
+            exit 1
+          done
+          echo "::error::Endpoint de auditoria da npm inacessivel apos 4 tentativas"
+          exit 1
       - run: npm run lint
       - run: npm test
       - name: Validate production configuration contract

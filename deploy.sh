@@ -117,7 +117,29 @@ echo "==> Instalando dependências de verificação..."
 npm ci --include=dev
 
 echo "==> Executando verificações locais..."
-npm audit --omit=dev --audit-level=high
+# `npm audit` sai com codigo 1 tanto para vulnerabilidade encontrada quanto
+# para falha de rede no endpoint da npm. Sob `set -e` os dois derrubavam o
+# deploy — e um outage do registry (04/set/2026) bloqueou producao sem que
+# nada estivesse errado com as dependencias. A trava segue fechada para
+# vulnerabilidade; so a falha de infraestrutura ganha novas tentativas.
+audit_com_retentativa() {
+  local tentativa saida
+  for tentativa in 1 2 3 4; do
+    if saida="$(npm audit --omit=dev --audit-level=high 2>&1)"; then
+      printf '%s\n' "$saida"
+      return 0
+    fi
+    if printf '%s' "$saida" | grep -qiE 'audit endpoint returned an error|Service Unavailable|network timeout|ENOTFOUND|ECONNRESET|EAI_AGAIN'; then
+      echo "==> Endpoint de auditoria da npm indisponivel (tentativa $tentativa/4); repetindo em $((tentativa * 15))s..."
+      sleep "$((tentativa * 15))"
+      continue
+    fi
+    printf '%s\n' "$saida"
+    die "auditoria de dependencias reprovou: vulnerabilidade de severidade alta"
+  done
+  die "nao foi possivel consultar o endpoint de auditoria da npm apos 4 tentativas; deploy abortado por precaucao"
+}
+audit_com_retentativa
 npm run check
 
 echo "==> Validando configuração do Compose..."

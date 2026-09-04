@@ -2,6 +2,32 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 
+// Regressao 04/set/2026: um outage do endpoint de auditoria da npm (503 /
+// network timeout) derrubava o deploy e o CI como se houvesse vulnerabilidade,
+// bloqueando producao sem nada errado nas dependencias.
+test('o gate de auditoria distingue outage da npm de vulnerabilidade real', () => {
+  const fs = require('node:fs');
+  const deploy = fs.readFileSync(require.resolve('./deploy.sh'), 'utf8');
+
+  assert.match(deploy, /audit_com_retentativa/, 'deploy.sh deve usar o wrapper com retentativa');
+  assert.match(deploy, /Service Unavailable/, 'deve reconhecer o 503 do registry');
+  assert.match(deploy, /network timeout/, 'deve reconhecer timeout de rede');
+  // A trava tem de continuar FECHADA para vulnerabilidade: erro que nao seja
+  // de rede aborta na hora, sem repetir.
+  assert.match(deploy, /vulnerabilidade de severidade alta/);
+  assert.ok(
+    !/^npm audit --omit=dev --audit-level=high$/m.test(deploy),
+    'nao deve mais chamar npm audit direto, sem tratamento'
+  );
+
+  const ci = fs.readFileSync(new URL('./.github/workflows/ci.yml', `file://${__dirname}/`), 'utf8');
+  assert.match(ci, /Audit dependencies/, 'ci.yml deve usar o passo tratado');
+  assert.ok(
+    !/^\s+- run: npm audit --audit-level=high\s*$/m.test(ci),
+    'ci.yml nao deve mais chamar npm audit direto'
+  );
+});
+
 test('docker deployment files persist database whatsapp auth and media', () => {
   const dockerfile = fs.readFileSync('Dockerfile', 'utf8');
   const compose = fs.readFileSync('docker-compose.yml', 'utf8');
