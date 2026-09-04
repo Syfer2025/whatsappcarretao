@@ -1,17 +1,43 @@
+/**
+ * Quem enxerga e quem age numa conversa.
+ *
+ * REGRA: o vendedor so ve a conversa que foi ATRIBUIDA a ele. Setor nao da
+ * acesso a nada. O admin recebe tudo e decide para quem vai cada conversa.
+ *
+ * Antes, pertencer ao setor bastava — e como assigned_to so era preenchido pela
+ * rota de atribuicao do admin, na pratica nenhuma conversa tinha dono e todo
+ * vendedor via e respondia a conversa de todos.
+ *
+ * Quebrou de verdade em 04/09/2026 com o cliente 554391070374: Jackson atendeu
+ * e passou preco (R$ 235,00); quase uma hora depois Lauriane entrou na MESMA
+ * conversa, cumprimentou do zero, perguntou "ja te deram atencao ai?" e mandou
+ * o cliente falar com um terceiro vendedor.
+ *
+ * Esta funcao e a regra unica: quem lista, quem busca, quem envia e quem recebe
+ * evento em tempo real passam por ela ou por um SQL que a espelha.
+ */
 function canAccessConversation(user, conversation) {
   if (!user || !conversation) return false;
   if (user.role === 'admin') return true;
   if (user.role !== 'vendor') return false;
 
   const userId = positiveInteger(user.id);
-  const userSectorId = positiveInteger(user.sector_id);
   const assignedTo = positiveInteger(conversation.assigned_to);
-  const conversationSectorId = positiveInteger(conversation.sector_id);
-  return Boolean(
-    (userId && assignedTo === userId)
-    || (userSectorId && conversationSectorId === userSectorId)
-  );
+  return Boolean(userId && assignedTo === userId);
 }
+
+/** Dono atual da conversa, para a mensagem de recusa dizer com quem ela esta. */
+function conversationOwner(db, conversationId) {
+  const id = positiveInteger(conversationId);
+  if (!id) return null;
+  return db.prepare(`
+    SELECT v.id, v.name
+    FROM conversations c
+    JOIN vendors v ON v.id = c.assigned_to
+    WHERE c.id = ?
+  `).get(id) || null;
+}
+
 
 function escapeLike(value) {
   return String(value).replace(/[\\%_]/g, char => `\\${char}`);
@@ -201,12 +227,8 @@ function normalizeMutedUntil(value) {
 
 function appendVendorVisibility(where, params, user, alias = 'c') {
   if (user?.role !== 'vendor') return;
-  const sectorId = positiveInteger(user.sector_id);
-  if (sectorId) {
-    where.push(`(${alias}.assigned_to = ? OR ${alias}.sector_id = ?)`);
-    params.push(user.id, sectorId);
-    return;
-  }
+  // Espelha canAccessConversation. Mudar so a funcao JS nao adianta: as
+  // listagens montam o SQL aqui e continuariam trazendo a conversa dos colegas.
   where.push(`${alias}.assigned_to = ?`);
   params.push(user.id);
 }
@@ -611,10 +633,15 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
     where.push('COALESCE(c.whatsapp_archived, 0) = 0');
   }
 
+  // Para o admin, "nao atribuida" e o que ainda precisa ser distribuido. Antes
+  // exigia tambem sector_id NULL, entao conversa que caiu num setor mas nao tem
+  // vendedor sumia da fila de novas e ia para "encaminhadas" — ficava sem dono
+  // sem ninguem perceber. Com o vendedor enxergando apenas o que lhe foi
+  // atribuido, essa conversa nao apareceria para NINGUEM.
   if (user.role !== 'vendor' && queue === 'unassigned') {
-    where.push('c.assigned_to IS NULL AND c.sector_id IS NULL');
+    where.push('c.assigned_to IS NULL');
   } else if (user.role !== 'vendor' && queue === 'forwarded') {
-    where.push('(c.assigned_to IS NOT NULL OR c.sector_id IS NOT NULL)');
+    where.push('c.assigned_to IS NOT NULL');
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -871,6 +898,7 @@ function searchVisibleContent({ db, user, q = '', mediaType = '', limit = 30 }) 
 
 module.exports = {
   canAccessConversation,
+  conversationOwner,
   getVisibleConversations,
   getConversationMessages,
   getMessageWithConversation,

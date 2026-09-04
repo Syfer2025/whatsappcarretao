@@ -142,14 +142,19 @@ test('server exposes contact directory, profile, new conversation and synchroniz
   assert.match(source, /scheduleTenantContactsSync/);
 });
 
-test('server identifies group senders and notifies every member of the assigned department', () => {
+test('server identifica quem falou no grupo e notifica apenas o vendedor atribuido', () => {
   const source = fs.readFileSync('server.js', 'utf8');
 
   assert.match(source, /participant_id/);
   assert.match(source, /getIncomingParticipantInfo/);
   assert.match(source, /participant_name/);
-  assert.match(source, /sector_id = \?/);
   assert.match(source, /profilePicUrl/);
+
+  // O evento de tempo real vai para o vendedor ATRIBUIDO, nunca para o setor.
+  // Era o setor que fazia a mensagem de um cliente aparecer ao vivo na tela de
+  // todos os vendedores.
+  assert.match(source, /SELECT id, name, sector_id FROM vendors WHERE id = \? AND active = 1/);
+  assert.doesNotMatch(source, /AND \(id = \? OR \(\? IS NOT NULL AND sector_id = \?\)\)/);
 });
 
 test('whatsapp manager is the single reconnect authority and reports connection transitions', () => {

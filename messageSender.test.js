@@ -58,7 +58,8 @@ test('sends text with emojis and marks message as sent', async () => {
   const db = createDb();
   db.prepare("INSERT INTO vendors (id, name, username, password) VALUES (7, 'Vendedor', 'vend', 'hash')")
     .run();
-  db.prepare("INSERT INTO conversations (phone, contact_name, status) VALUES (?, ?, 'active')")
+  // assigned_to obrigatorio: vendedor so envia para conversa atribuida a ele.
+  db.prepare("INSERT INTO conversations (phone, contact_name, assigned_to, status) VALUES (?, ?, 7, 'active')")
     .run('5511999999999@c.us', 'Cliente');
   const conversation = db.prepare('SELECT * FROM conversations').get();
 
@@ -172,9 +173,9 @@ test('revalida a autorização ao sair da fila e não envia após transferência
     INSERT INTO vendors (
       id, name, username, password, sector_id, active, token_version
     ) VALUES (7, 'Vendedor', 'vend-fila', 'hash', 1, 1, 0);
-    INSERT INTO conversations (id, phone, contact_name, sector_id, status) VALUES
-      (1, 'primeira@c.us', 'Primeira', 1, 'active'),
-      (2, 'transferida@c.us', 'Transferida', 1, 'active');
+    INSERT INTO conversations (id, phone, contact_name, sector_id, assigned_to, status) VALUES
+      (1, 'primeira@c.us', 'Primeira', 1, 7, 'active'),
+      (2, 'transferida@c.us', 'Transferida', 1, 7, 'active');
   `);
   const firstConversation = db.prepare('SELECT * FROM conversations WHERE id = 1').get();
   const transferredConversation = db.prepare('SELECT * FROM conversations WHERE id = 2').get();
@@ -227,7 +228,10 @@ test('revalida a autorização ao sair da fila e não envia após transferência
   });
   assert.equal(getMessageQueueLength(), 1);
 
-  db.prepare('UPDATE conversations SET sector_id = 2 WHERE id = 2').run();
+  // Transferencia agora e trocar o DONO: setor nao da mais acesso a nada, entao
+  // mexer so no sector_id nao revoga nada (era o bug que deixava dois
+  // vendedores no mesmo cliente).
+  db.prepare('UPDATE conversations SET assigned_to = NULL, sector_id = 2 WHERE id = 2').run();
   releaseFirst();
 
   const [firstResult, queuedResult] = await Promise.all([first, queued]);
@@ -317,9 +321,9 @@ test('encaminhamento revalida também a conversa de origem ao sair da fila', asy
     INSERT INTO vendors (
       id, name, username, password, sector_id, active, token_version
     ) VALUES (8, 'Agente', 'agente-forward', 'hash', 1, 1, 0);
-    INSERT INTO conversations (id, phone, contact_name, sector_id, status) VALUES
-      (10, 'destino@c.us', 'Destino', 1, 'active'),
-      (11, 'origem@c.us', 'Origem', 1, 'active');
+    INSERT INTO conversations (id, phone, contact_name, sector_id, assigned_to, status) VALUES
+      (10, 'destino@c.us', 'Destino', 1, 8, 'active'),
+      (11, 'origem@c.us', 'Origem', 1, 8, 'active');
   `);
   const target = db.prepare('SELECT * FROM conversations WHERE id = 10').get();
   const user = {
@@ -368,7 +372,8 @@ test('encaminhamento revalida também a conversa de origem ao sair da fila', asy
   });
   assert.equal(getMessageQueueLength(), 1);
 
-  db.prepare('UPDATE conversations SET sector_id = 2 WHERE id = 11').run();
+  // Mesma coisa na conversa de ORIGEM do encaminhamento: revoga pelo dono.
+  db.prepare('UPDATE conversations SET assigned_to = NULL, sector_id = 2 WHERE id = 11').run();
   releaseFirst();
 
   const [, result] = await Promise.all([blocker, forwarded]);
@@ -384,10 +389,10 @@ test('rejects a quoted message from an inaccessible conversation in another sect
   db.prepare("INSERT INTO vendors (id, name, username, password, sector_id) VALUES (7, 'Vendedor', 'vend-quote', 'hash', 1)")
     .run();
   db.prepare(`
-    INSERT INTO conversations (id, phone, contact_name, sector_id, status)
+    INSERT INTO conversations (id, phone, contact_name, sector_id, assigned_to, status)
     VALUES
-      (1, '5511000000001@c.us', 'Cliente vendas', 1, 'active'),
-      (2, '5511000000002@c.us', 'Cliente suporte', 2, 'active')
+      (1, '5511000000001@c.us', 'Cliente vendas', 1, 7, 'active'),
+      (2, '5511000000002@c.us', 'Cliente suporte', 2, NULL, 'active')
   `).run();
   db.prepare(`
     INSERT INTO messages (id, conversation_id, external_id, from_type, content)
@@ -458,7 +463,7 @@ test('prefixes vendor name in the real whatsapp text without changing stored con
   db.prepare("INSERT INTO sectors (id, name) VALUES (1, 'Vendas')").run();
   db.prepare("INSERT INTO vendors (id, name, username, password, sector_id) VALUES (7, 'Jackson', 'jackson', 'hash', 1)")
     .run();
-  db.prepare("INSERT INTO conversations (phone, contact_name, sector_id, status) VALUES (?, ?, 1, 'active')")
+  db.prepare("INSERT INTO conversations (phone, contact_name, sector_id, assigned_to, status) VALUES (?, ?, 1, 7, 'active')")
     .run('5511999999999@c.us', 'Cliente');
   const conversation = db.prepare('SELECT * FROM conversations').get();
 
@@ -590,7 +595,7 @@ test('prefixes vendor name in whatsapp media captions', async () => {
   const mediaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'whatsapp-outbound-media-prefix-'));
   db.prepare("INSERT INTO vendors (id, name, username, password) VALUES (8, 'Jackson', 'jackson8', 'hash')")
     .run();
-  db.prepare("INSERT INTO conversations (phone, contact_name, status) VALUES (?, ?, 'active')")
+  db.prepare("INSERT INTO conversations (phone, contact_name, assigned_to, status) VALUES (?, ?, 8, 'active')")
     .run('5511999999999@c.us', 'Cliente');
   const conversation = db.prepare('SELECT * FROM conversations').get();
 
@@ -1011,7 +1016,7 @@ test('marks outbound message as failed when whatsapp send fails', async () => {
   const db = createDb();
   db.prepare("INSERT INTO vendors (id, name, username, password) VALUES (3, 'Vendedor', 'vend3', 'hash')")
     .run();
-  db.prepare("INSERT INTO conversations (phone, contact_name, status) VALUES (?, ?, 'active')")
+  db.prepare("INSERT INTO conversations (phone, contact_name, assigned_to, status) VALUES (?, ?, 3, 'active')")
     .run('5511999999999@c.us', 'Cliente');
   const conversation = db.prepare('SELECT * FROM conversations').get();
 

@@ -3,7 +3,7 @@ const { getSendChatId, getMessageExternalId, toSqlDate } = require('./whatsappUt
 const { saveMessageMedia } = require('./mediaStorage');
 const { prepareVoiceMediaForSend: defaultPrepareVoiceMediaForSend } = require('./audioTranscoder');
 const { sleep, withTimeout } = require('./runtimeUtils');
-const { canAccessConversation } = require('./messageQueries');
+const { canAccessConversation, conversationOwner } = require('./messageQueries');
 
 // Rate limiter POR TENANT: cada número de WhatsApp tem sua própria fila e seu
 // próprio intervalo mínimo entre envios. Bloqueios do WhatsApp são por número,
@@ -905,6 +905,20 @@ async function sendOutboundMessage({
   // nunca fica silenciosamente preso fora da fila.
   assertQueuePreflight(tenantKey, estimatedQueueBytes);
   const vendorId = user?.role === 'vendor' ? user.id : null;
+
+  // Só envia para conversa ATRIBUÍDA a este vendedor. Quem distribui é o admin;
+  // ninguém pega conversa sozinho. Recusa antes de qualquer linha durável,
+  // seguindo a regra do comentário acima — depois do insertPendingMessage a
+  // recusa deixaria mensagem pendente órfã.
+  if (vendorId) {
+    const atual = db.prepare('SELECT assigned_to FROM conversations WHERE id = ?').get(conversation.id);
+    if (Number(atual?.assigned_to) !== Number(vendorId)) {
+      const dono = conversationOwner(db, conversation.id);
+      throw outboundAuthorizationError(dono
+        ? `Esta conversa está atribuída a ${dono.name}`
+        : 'Esta conversa ainda não foi atribuída a você');
+    }
+  }
 
   let quotedMessageId = null;
   let quotedMessageExternalId = null;

@@ -47,13 +47,19 @@ function createDb() {
   return db;
 }
 
-test('checks conversation access for admin, assigned vendor and sector members', () => {
+test('conversa so e visivel para quem ela foi atribuida', () => {
   assert.equal(canAccessConversation({ role: 'admin', id: 1 }, { assigned_to: null }), true);
   assert.equal(canAccessConversation({ role: 'vendor', id: 9 }, { assigned_to: 9 }), true);
   assert.equal(canAccessConversation({ role: 'vendor', id: 8 }, { assigned_to: 9 }), false);
-  assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 4 }, { assigned_to: 9, sector_id: 4 }), true);
-  assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 5 }, { assigned_to: 9, sector_id: 4 }), false);
+  // Mesmo setor NAO da acesso. Era assim que dava, e foi por isso que em
+  // 04/09/2026 dois vendedores atenderam o mesmo cliente sem saber um do outro.
+  assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 4 }, { assigned_to: 9, sector_id: 4 }), false);
+  // Conversa sem dono tambem nao aparece para o vendedor: quem recebe primeiro
+  // e o admin, e e ele quem distribui.
+  assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 4 }, { assigned_to: null, sector_id: 4 }), false);
+  // Atribuicao vale mesmo quando o setor da conversa e outro.
   assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 5 }, { assigned_to: 8, sector_id: 4 }), true);
+  assert.equal(canAccessConversation({ role: 'vendor', id: 8, sector_id: 5 }, { assigned_to: 9, sector_id: 4 }), false);
 });
 
 test('filters conversation messages by starred and text query', () => {
@@ -358,18 +364,22 @@ test('returns only starred messages visible to assigned vendor', () => {
   db.close();
 });
 
-test('applies sector visibility consistently to lists search and favorites', () => {
+test('lista, busca e favoritos so mostram a conversa atribuida ao vendedor', () => {
   const db = createDb();
-  const sectorUser = { role: 'vendor', id: 8, sector_id: 4 };
-  setMessageStarred({ db, messageId: 1, user: sectorUser, starred: true });
+  const dono = { role: 'vendor', id: 9, sector_id: 4 };
+  const colega = { role: 'vendor', id: 8, sector_id: 4 };
+  setMessageStarred({ db, messageId: 1, user: dono, starred: true });
 
-  const conversations = getVisibleConversations({ db, user: sectorUser });
-  const search = searchVisibleContent({ db, user: sectorUser, q: 'pedido' });
-  const starred = getStarredMessages({ db, user: sectorUser });
+  assert.deepEqual(getVisibleConversations({ db, user: dono }).map(c => c.id), [1]);
+  assert.deepEqual(searchVisibleContent({ db, user: dono, q: 'pedido' }).messages.map(m => m.id), [1]);
+  assert.deepEqual(getStarredMessages({ db, user: dono }).map(m => m.id), [1]);
 
-  assert.deepEqual(conversations.map(conversation => conversation.id), [1, 2]);
-  assert.deepEqual(search.messages.map(message => message.id), [1]);
-  assert.deepEqual(starred.map(message => message.id), [1]);
+  // O colega do MESMO setor nao ve nada: nem a conversa 1, que e do dono, nem a
+  // conversa 2, que ainda nao foi distribuida. Cada caminho de leitura precisa
+  // do proprio teste porque cada um monta o SQL por conta.
+  assert.deepEqual(getVisibleConversations({ db, user: colega }).map(c => c.id), []);
+  assert.deepEqual(searchVisibleContent({ db, user: colega, q: 'pedido' }).messages.map(m => m.id), []);
+  assert.deepEqual(getStarredMessages({ db, user: colega }).map(m => m.id), []);
 
   db.close();
 });
@@ -848,9 +858,12 @@ test('separates admin new queue from forwarded conversations', () => {
     queue: 'unassigned'
   });
 
-  assert.deepEqual(unassignedQueue.map(conversation => conversation.id), [3]);
-  assert.deepEqual(forwardedQueue.map(conversation => conversation.id), [2, 1]);
-  assert.deepEqual(vendorQueue.map(conversation => conversation.id), [2, 1]);
+  // Fila de novas = tudo sem vendedor, inclusive a conversa 2, que tem setor
+  // mas nao tem dono. Se ela ficasse fora, nao apareceria para ninguem.
+  assert.deepEqual(unassignedQueue.map(conversation => conversation.id), [3, 2]);
+  assert.deepEqual(forwardedQueue.map(conversation => conversation.id), [1]);
+  // O parametro de fila nao vale para vendedor: ele ve a conversa dele e so.
+  assert.deepEqual(vendorQueue.map(conversation => conversation.id), [1]);
 
   db.close();
 });

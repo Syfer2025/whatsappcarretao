@@ -3173,7 +3173,7 @@ app.get('/api/conversations/unassigned', tenantAuthMiddleware(['admin']), (req, 
     SELECT c.*, s.name as sector_name
     FROM conversations c
     LEFT JOIN sectors s ON c.sector_id = s.id
-    WHERE c.assigned_to IS NULL AND c.sector_id IS NULL AND c.status = 'unassigned'
+    WHERE c.assigned_to IS NULL
       AND COALESCE(c.whatsapp_archived, 0) = 0
       AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)
     ORDER BY COALESCE(c.last_activity_at, c.updated_at, c.created_at) DESC, c.id DESC
@@ -3604,10 +3604,10 @@ app.get('/api/stickers/recent', tenantAuthMiddleware(['vendor', 'admin']), (req,
   const requestedLimit = Number(req.query.limit || 48);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 48, 1), 100);
   const vendorVisibility = req.user.role === 'vendor'
-    ? 'AND (c.assigned_to = ? OR (? IS NOT NULL AND c.sector_id = ?))'
+    ? 'AND c.assigned_to = ?'
     : '';
   const params = req.user.role === 'vendor'
-    ? [req.user.id, req.user.sector_id || null, req.user.sector_id || null]
+    ? [req.user.id]
     : [];
   const candidates = db.prepare(`
     SELECT m.id,
@@ -4139,20 +4139,26 @@ function tenantOperationalRoom(tenantId) {
   return `tenant-operational:${parsePositiveInt(tenantId, 'tenant')}`;
 }
 
+/**
+ * Quem recebe os eventos de tempo real desta conversa.
+ *
+ * Espelha canAccessConversation e PRECISA espelhar: e por aqui que a mensagem
+ * chega sozinha na tela. Enquanto isto mandava para o setor inteiro, mesmo com
+ * as listagens corrigidas o vendedor continuaria vendo ao vivo a mensagem de um
+ * cliente que nao e dele.
+ *
+ * Conversa sem atribuicao vai so para o admin — e ele quem recebe tudo primeiro
+ * e decide para quem mandar.
+ */
 function visibleUsersForConversation(conversation) {
   if (!conversation) return [];
   const users = db.prepare('SELECT id, username AS name FROM admins').all()
     .map(admin => ({ id: admin.id, role: 'admin', name: admin.name }));
-  if (conversation.assigned_to || conversation.sector_id) {
-    const vendors = db.prepare(`
-      SELECT id, name, sector_id
-      FROM vendors
-      WHERE active = 1
-        AND (id = ? OR (? IS NOT NULL AND sector_id = ?))
-    `).all(conversation.assigned_to || 0, conversation.sector_id || null, conversation.sector_id || null);
-    for (const vendor of vendors) {
-      users.push({ id: vendor.id, role: 'vendor', name: vendor.name, sector_id: vendor.sector_id });
-    }
+
+  const assignedTo = Number(conversation.assigned_to) || 0;
+  if (assignedTo) {
+    const dono = db.prepare('SELECT id, name, sector_id FROM vendors WHERE id = ? AND active = 1').get(assignedTo);
+    if (dono) users.push({ id: dono.id, role: 'vendor', name: dono.name, sector_id: dono.sector_id });
   }
   return users;
 }
