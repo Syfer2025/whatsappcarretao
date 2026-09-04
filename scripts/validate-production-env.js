@@ -2,6 +2,7 @@
 
 const { validateCapacityConfiguration } = require('./validate-host-capacity');
 const { validateTotpSecret } = require('../totp');
+const { isInternalEdition } = require('../internalEdition');
 const { getTurnstileConfigurationStatus } = require('../signupProtection');
 
 const PLACEHOLDER_PATTERN = /(CHANGE_ME|REPLACE_ME|EXAMPLE|YOUR_|<[^>]+>|XXX)/i;
@@ -202,8 +203,20 @@ function validateProductionEnv(env = process.env) {
   if (valueOf(env, 'WHATSAPP_HEADLESS', 'true').toLowerCase() !== 'true') {
     errors.push('WHATSAPP_HEADLESS deve ser true na VPS sem interface gráfica');
   }
-  if (valueOf(env, 'WA_START_DEFAULT_SESSION', 'false').toLowerCase() !== 'false') {
-    errors.push('WA_START_DEFAULT_SESSION deve ser false em produção para reservar capacidade aos tenants comerciais');
+  // A regra nasceu na edicao comercial multi-tenant: la a capacidade e disputada
+  // e nenhuma sessao sobe sozinha, para nao consumir slot de tenant pagante. Na
+  // edicao interna existe UM tenant e WA_MAX_CONCURRENT_SESSIONS=1 — nao ha
+  // capacidade a reservar de ninguem, e a proibicao so produz um efeito ruim:
+  // depois de cada deploy ou reboot o WhatsApp fica fora do ar ate alguem abrir
+  // o painel e clicar em conectar (medido em 04/set/2026, apos um restart do
+  // container: zero processos de Chromium e nenhuma sessao). A sessao restaura
+  // de .wwebjs_auth sem pedir QR, entao subir sozinha e o comportamento
+  // desejado aqui. No modo comercial a trava continua valendo.
+  const startDefaultSession = valueOf(env, 'WA_START_DEFAULT_SESSION', 'false').toLowerCase();
+  if (!['true', 'false'].includes(startDefaultSession)) {
+    errors.push('WA_START_DEFAULT_SESSION deve ser true ou false');
+  } else if (startDefaultSession === 'true' && !isInternalEdition(env)) {
+    errors.push('WA_START_DEFAULT_SESSION deve ser false na edicao comercial para reservar capacidade aos tenants');
   }
   if (valueOf(env, 'FFMPEG_PATH', '/usr/bin/ffmpeg') !== '/usr/bin/ffmpeg') {
     errors.push('FFMPEG_PATH deve apontar para /usr/bin/ffmpeg na imagem oficial');

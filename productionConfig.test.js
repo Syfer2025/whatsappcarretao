@@ -51,6 +51,47 @@ function validInternalEnvironment(overrides = {}) {
   });
 }
 
+// Regressao 04/set/2026: a proibicao de WA_START_DEFAULT_SESSION=true existia
+// para reservar capacidade a tenants comerciais, mas na edicao interna (um
+// tenant, WA_MAX_CONCURRENT_SESSIONS=1) ela apenas deixava o WhatsApp fora do
+// ar apos cada deploy, ate alguem clicar em conectar no painel.
+test('start automatico da sessao e permitido na edicao interna e negado na comercial', () => {
+  const { validateProductionEnv } = require('./scripts/validate-production-env.js');
+  const base = {
+    DOMAIN: 'app.teste.invalid',
+    APP_URL: 'https://app.teste.invalid',
+    CORS_ORIGIN: 'https://app.teste.invalid',
+    JWT_SECRET: '0123456789abcdef0123456789abcdef',
+    ADMIN_USERNAME: 'dono@teste.invalid',
+    ADMIN_PASSWORD: 'Senha-Forte-De-Teste-42',
+    WA_MAX_CONCURRENT_SESSIONS: '1',
+    APP_UID: '1000',
+    APP_GID: '1000',
+    BILLING_REQUIRED: 'false'
+  };
+  const erros = env => {
+    const r = validateProductionEnv({ ...base, ...env });
+    const lista = Array.isArray(r) ? r : (r?.errors || []);
+    return lista.filter(e => /WA_START_DEFAULT_SESSION/.test(e));
+  };
+
+  assert.deepEqual(
+    erros({ APP_MODE: 'internal', INTERNAL_SINGLE_TENANT: 'true', WA_START_DEFAULT_SESSION: 'true' }),
+    [],
+    'edicao interna deve aceitar o start automatico'
+  );
+  assert.equal(
+    erros({ APP_MODE: 'commercial', WA_START_DEFAULT_SESSION: 'true' }).length,
+    1,
+    'edicao comercial deve continuar recusando'
+  );
+  assert.equal(
+    erros({ APP_MODE: 'internal', INTERNAL_SINGLE_TENANT: 'true', WA_START_DEFAULT_SESSION: 'talvez' }).length,
+    1,
+    'valor invalido deve ser recusado em qualquer edicao'
+  );
+});
+
 test('accepts the exclusive internal edition without Stripe, trial or Turnstile', () => {
   assert.deepEqual(validateProductionEnv(validInternalEnvironment()), []);
 });
