@@ -1,0 +1,41 @@
+; Backup verificado do WhatsCarretão (executado pelo timer de mesmo nome).
+;
+; Instalação (no servidor, como root):
+;   cp deploy/systemd/whatscarretao-backup.* /etc/systemd/system/
+;   systemctl daemon-reload
+;   systemctl enable --now whatscarretao-backup.timer
+;
+; Conferir antes de instalar: User= e WorkingDirectory= abaixo precisam bater com
+; o dono real do deploy. Na auditoria de 09/09/2026 o container estava rodando a
+; partir de /home/carretao/whatsappcarretao. Se o caminho for outro, ajuste os
+; dois campos — o serviço falha de imediato se o diretório não existir, então o
+; erro aparece no `systemctl status`, não em silêncio.
+;
+; Testar sem esperar o horário:
+;   systemctl start whatscarretao-backup.service
+;   journalctl -u whatscarretao-backup.service -n 50
+
+[Unit]
+Description=Backup verificado do WhatsCarretao
+Documentation=file:/home/carretao/whatsappcarretao/docs/operations/security-runbook.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=carretao
+WorkingDirectory=/home/carretao/whatsappcarretao
+ExecStart=/home/carretao/whatsappcarretao/scripts/scheduled-backup.sh
+
+; O snapshot copia bancos, mídia e a sessão do WhatsApp; em disco cheio ou com o
+; container reiniciando ele pode demorar. Sem teto, uma execução travada
+; bloquearia todas as seguintes.
+TimeoutStartSec=1800
+
+; O backup nunca deve competir com o atendimento: se a CPU ou o disco estiverem
+; disputados, quem espera e o backup.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

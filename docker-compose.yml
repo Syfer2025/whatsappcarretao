@@ -55,9 +55,20 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       CLAMSCAN_PATH: ${CLAMSCAN_PATH:-}
       CLAMSCAN_TIMEOUT_MS: ${CLAMSCAN_TIMEOUT_MS:-15000}
+      # Teto do heap do Node. Como o V8 dimensiona o heap pela RAM do host e não
+      # pelo limite do cgroup, sem isto o processo Node também cresce achando que
+      # tem 4 GiB à disposição. Buffers de mídia ficam fora deste número.
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=448}
       WA_BROWSER_MODE: isolated
       WA_NO_SANDBOX: ${WA_NO_SANDBOX:-false}
       WHATSAPP_HEADLESS: ${WHATSAPP_HEADLESS:-true}
+      # Teto do heap do renderizador do Chromium e tamanho da janela headless.
+      # Ver o comentário em whatsappManager.js: o Chromium vinha sendo morto pelo
+      # kernel com ~1,3 GiB dentro de um limite de 2 GiB. Aumentar
+      # WA_RENDERER_HEAP_MB se o renderizador passar a cair sozinho.
+      WA_RENDERER_HEAP_MB: ${WA_RENDERER_HEAP_MB:-768}
+      WA_VIEWPORT_WIDTH: ${WA_VIEWPORT_WIDTH:-1280}
+      WA_VIEWPORT_HEIGHT: ${WA_VIEWPORT_HEIGHT:-800}
       FFMPEG_PATH: /usr/bin/ffmpeg
       WA_MAX_CONCURRENT_SESSIONS: '1'
       WA_START_DEFAULT_SESSION: ${WA_START_DEFAULT_SESSION:-false}
@@ -147,9 +158,20 @@ services:
       # processo renderizador. Sem ela o sandbox nao sobe.
       - SYS_CHROOT
     read_only: true
+    # ATENÇÃO: tmpfs e shm são RAM e contam dentro do mem_limit do container.
+    #
+    # Estavam somando 2 GiB de teto — exatamente o limite inteiro do container —
+    # então o Chromium podia encher a memória por aqui sem que nada o impedisse
+    # antes do OOM killer. Como o app roda com --disable-dev-shm-usage, o
+    # Chromium usa /tmp e quase não toca /dev/shm; era de /tmp que vinham os
+    # ~0,5 GiB de shmem vistos nos despejos do kernel.
+    #
+    # Os valores agora limitam o pior caso a ~640 MiB, deixando o resto do
+    # orçamento para Node e Chromium. Se o Chromium começar a falhar por falta
+    # de espaço em /tmp (e não por memória), este é o número a subir.
     tmpfs:
-      - /tmp:size=1g,mode=1777
-    shm_size: '1gb'
+      - /tmp:size=512m,mode=1777
+    shm_size: '128mb'
     pids_limit: ${PIDS_LIMIT:-768}
     mem_limit: ${MEMORY_LIMIT:-4g}
     cpus: '${CPU_LIMIT:-2.0}'

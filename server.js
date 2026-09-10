@@ -149,7 +149,9 @@ const {
   resolveWhatsAppIdentifierMap,
   resolveWhatsAppIdentifiers
 } = require('./conversationIdentity');
+const { getContainerMemory } = require('./containerMemory');
 const {
+  assertCurrentOutboundAuthorization,
   sendOutboundMessage,
   getMaxOutboundMediaBytes,
   drainMessageQueues,
@@ -176,6 +178,7 @@ const {
 } = require('./support');
 const {
   canAccessConversation,
+  countUnreadConversations,
   getVisibleConversations,
   getConversationMessages,
   getMessageWithConversation,
@@ -667,13 +670,62 @@ function sendReadiness(_req, res) {
       enrichmentQueue: incomingEnrichmentQueue.getStats(),
       inboundMedia: inboundMediaLimiter.getStats()
     },
+    // Informativo, nunca em `checks`: o consumo alto precisa ser visível antes
+    // do OOM killer agir, mas responder 503 por causa dele só faria o Docker
+    // reiniciar o container justamente quando a memória já está apertada.
+    // `oomKills` é acumulado desde a criação do cgroup — o que interessa é ele
+    // crescer entre duas leituras.
+    memory: getContainerMemory(),
     defaultConnectionState: lastClientState,
+    uptime: process.uptime()
+  });
+}
+
+// Disponibilidade do canal de WhatsApp, deliberadamente FORA de /health/ready.
+//
+// O healthcheck do container consulta /health/ready e só olha o status HTTP. Se
+// a queda de uma sessão derrubasse aquela rota, o Docker marcaria o container
+// como unhealthy e reiniciaria o processo inteiro — matando o painel, as filas
+// e as conexões dos vendedores por causa de algo que quase sempre se resolve
+// pelo reconnect ou por um novo pareamento. Por isso a sessão continua sendo
+// apenas informativa lá.
+//
+// O efeito colateral era o inverso: o container aparecia saudável com zero
+// sessões prontas, e ninguém era avisado de que o atendimento estava fora do ar.
+// Esta rota existe para o monitoramento externo: responde 503 quando a sessão
+// esperada não está pronta ou quando o reconnect automático desistiu e alguém
+// precisa parear o QR de novo.
+function sendWhatsAppReadiness(_req, res) {
+  const sessions = waManagerReady ? waManager.listSessions() : [];
+  const readySessions = sessions.filter(session => session.ready);
+  const manualAction = sessions.filter(session => session.requiresManualAction);
+  // Na edição interna existe um único número esperado; nenhuma sessão pronta
+  // significa atendimento indisponível. No SaaS não há sessão obrigatória — um
+  // cliente pode legitimamente não ter conectado ainda —, então lá só alertamos
+  // quando alguma sessão trava pedindo ação manual.
+  const expectsReadySession = INTERNAL_EDITION;
+  const ok = manualAction.length === 0
+    && (!expectsReadySession || (waManagerReady && readySessions.length > 0));
+  res.status(ok ? 200 : 503).json({
+    ok,
+    expectsReadySession,
+    managerStarted: Boolean(waManagerReady),
+    readySessions: readySessions.length,
+    activeSessions: sessions.filter(session => session.status !== 'queued_capacity').length,
+    queuedSessions: sessions.filter(session => session.status === 'queued_capacity').length,
+    manualActionRequired: manualAction.length,
+    defaultConnectionState: lastClientState,
+    // Sem detalhe por sessão de propósito: /health/* é público (o proxy o
+    // publica junto com o resto) e no modo SaaS listar tenant_id aqui vazaria
+    // a carteira de clientes. Os contadores acima bastam para alertar; o
+    // diagnóstico por sessão continua no painel, atrás de autenticação.
     uptime: process.uptime()
   });
 }
 
 app.get('/health', sendReadiness);
 app.get('/health/ready', sendReadiness);
+app.get('/health/whatsapp', sendWhatsAppReadiness);
 
 app.get('/api/csrf-token', (req, res) => {
   const csrfToken = readCsrfToken(req)
@@ -2859,6 +2911,22 @@ app.get('/api/conversations', tenantAuthMiddleware(), (req, res) => {
   }
 });
 
+// Total de não lidas de quem está autenticado — alimenta o aviso permanente do
+// painel (contador no título da aba e no cabeçalho).
+//
+// Vem separado da listagem de propósito: a lista é paginada, então somar o que
+// veio na página travaria o total no tamanho dela justamente quando há muita
+// coisa acumulada. Cada usuário recebe o seu próprio número: o vendedor conta só
+// o que lhe foi atribuído, o admin conta tudo.
+app.get('/api/conversations/unread-count', tenantAuthMiddleware(), (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(countUnreadConversations({ db, user: req.user }));
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 function getCachedConversationProfile(conversationId) {
   const conversation = db.prepare(`
     SELECT c.*, v.name AS vendor_name, s.name AS sector_name
@@ -2970,6 +3038,14 @@ app.patch('/api/conversations/:id/block', tenantAuthMiddleware(['vendor', 'admin
     if (typeof action !== 'function') {
       return res.status(404).json({ error: 'Contato não encontrado no WhatsApp' });
     }
+    // A checagem lá em cima já tem alguns segundos de idade: buscar o contato no
+    // WhatsApp leva até 13 s, e nesse intervalo o admin pode ter transferido a
+    // conversa ou revogado a sessão de quem pediu. Bloquear é um efeito externo
+    // e irreversível pelo painel, então a autorização é reconferida agora,
+    // imediatamente antes da chamada — o mesmo que a fila de envio faz.
+    assertCurrentOutboundAuthorization(db, req.user, conversationId, [], {
+      consequence: blocked ? 'o contato não foi bloqueado' : 'o contato não foi desbloqueado'
+    });
     const changed = await withTimeout(action.call(contact), 15000, blocked ? 'blockContact' : 'unblockContact');
     if (changed === false) return res.status(400).json({ error: 'O WhatsApp não permitiu esta ação' });
 
@@ -3000,6 +3076,13 @@ app.patch('/api/conversations/:id/block', tenantAuthMiddleware(['vendor', 'admin
     emitConversationUpdate(conversationId);
     res.json({ ok: true, blocked, profile: getCachedConversationProfile(conversationId) });
   } catch (err) {
+    // Autorização revogada durante a espera não é falha do WhatsApp: o motivo
+    // real precisa chegar ao vendedor, senão ele reclama de "erro do WhatsApp"
+    // quando na verdade a conversa saiu das mãos dele.
+    if (err.code === 'OUTBOUND_AUTHORIZATION_REVOKED') {
+      logger.warn({ conversationId, tenantId: req.user.tenant_id }, 'Bloqueio recusado: autorizacao mudou durante a consulta ao WhatsApp');
+      return res.status(err.statusCode || 403).json({ error: err.message });
+    }
     logger.warn({ err, conversationId, tenantId: req.user.tenant_id }, 'Falha ao alterar bloqueio do contato');
     res.status(err.statusCode || 502).json({ error: 'O WhatsApp não confirmou a alteração de bloqueio' });
   }

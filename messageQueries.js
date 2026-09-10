@@ -624,6 +624,40 @@ function getStarredMessages({ db, user, q = '' }) {
   `).all(...params);
 }
 
+// Quantas mensagens do cliente chegaram depois da ultima leitura do usuario.
+//
+// Depende de tres aliases estarem no escopo de quem usa: `c` (conversations),
+// `cus` (conversation_user_state do usuario) e `inbox_baseline`. O baseline
+// existe para que uma conta nova nao herde anos de historico como "nao lido".
+//
+// Fica numa constante porque a expressao e usada em mais de um lugar — na lista
+// e no total do cabecalho — e duplicar o SQL e a forma mais facil de o numero do
+// aviso divergir do badge de cada conversa.
+const UNREAD_MESSAGES_SQL = `(
+  SELECT COUNT(*)
+  FROM messages m
+  WHERE m.conversation_id = c.id
+    AND m.from_type = 'client'
+    AND (
+      m.created_at > COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
+      OR (
+        m.created_at = COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
+        AND m.id > CASE
+          WHEN cus.last_read_message_at IS NULL
+            THEN inbox_baseline.baseline_message_id
+          ELSE COALESCE(cus.last_read_message_id, 0)
+        END
+      )
+    )
+)`;
+
+// "Marcar como nao lida" e uma escolha explicita do usuario: vale mesmo quando
+// nao ha nenhuma mensagem nova, por isso o piso de 1.
+const UNREAD_COUNT_SQL = `CASE
+  WHEN COALESCE(cus.marked_unread, 0) = 1 THEN MAX(1, ${UNREAD_MESSAGES_SQL})
+  ELSE ${UNREAD_MESSAGES_SQL}
+END`;
+
 function getVisibleConversations({ db, user, queue = '', limit, offset }) {
   if (!userHasIdentity(user)) return [];
   const pageLimit = normalizeConversationPageLimit(limit);
@@ -669,42 +703,7 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
            cus.muted_until,
            COALESCE(cus.marked_unread, 0) AS marked_unread,
            cus.draft_text,
-           CASE
-             WHEN COALESCE(cus.marked_unread, 0) = 1 THEN MAX(1, (
-               SELECT COUNT(*)
-               FROM messages m
-               WHERE m.conversation_id = c.id
-                 AND m.from_type = 'client'
-                 AND (
-                   m.created_at > COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
-                   OR (
-                     m.created_at = COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
-                     AND m.id > CASE
-                       WHEN cus.last_read_message_at IS NULL
-                         THEN inbox_baseline.baseline_message_id
-                       ELSE COALESCE(cus.last_read_message_id, 0)
-                     END
-                   )
-                 )
-             ))
-             ELSE (
-               SELECT COUNT(*)
-               FROM messages m
-               WHERE m.conversation_id = c.id
-                 AND m.from_type = 'client'
-                 AND (
-                   m.created_at > COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
-                   OR (
-                     m.created_at = COALESCE(cus.last_read_message_at, inbox_baseline.baseline_at)
-                     AND m.id > CASE
-                       WHEN cus.last_read_message_at IS NULL
-                         THEN inbox_baseline.baseline_message_id
-                       ELSE COALESCE(cus.last_read_message_id, 0)
-                     END
-                   )
-                 )
-             )
-           END AS unread_count
+           ${UNREAD_COUNT_SQL} AS unread_count
     FROM conversations c
     CROSS JOIN inbox_baseline
     LEFT JOIN vendors v ON c.assigned_to = v.id
@@ -733,6 +732,12 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
     ORDER BY
       CASE WHEN cus.pinned_at IS NULL THEN 1 ELSE 0 END ASC,
       cus.pinned_at DESC,
+      -- Conversa com mensagem nao aberta sobe para o topo e fica la ate alguem
+      -- abrir. Sem isto ela descia junto com o resto conforme chegavam outras
+      -- mensagens e sumia da primeira pagina — o atendimento so a encontrava
+      -- rolando a lista, ou nunca. Fica ABAIXO das fixadas: fixar e uma escolha
+      -- explicita do usuario e continua valendo mais.
+      CASE WHEN unread_count > 0 THEN 0 ELSE 1 END ASC,
       COALESCE(latest.created_at, c.last_activity_at, c.updated_at) DESC,
       c.id DESC
     LIMIT ? OFFSET ?
@@ -747,6 +752,47 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
     pageLimit,
     pageOffset
   );
+}
+
+// Total de nao lidas do usuario, para o aviso permanente do painel.
+//
+// Nao da para somar o que veio na lista: ela e paginada, entao a partir da
+// primeira pagina cheia o total do cabecalho ficaria travado no tamanho dela.
+// Aqui a conta corre sobre tudo o que o usuario enxerga — e a visibilidade e a
+// mesma da listagem, via appendVendorVisibility: o vendedor conta apenas as
+// conversas atribuidas a ele, o admin conta todas.
+//
+// Arquivadas ficam de fora: sao conversas que o usuario tirou da frente de
+// proposito. Silenciadas continuam contando — silenciar tira o alerta sonoro e o
+// aviso na tela, nao apaga a mensagem da caixa de entrada.
+function countUnreadConversations({ db, user }) {
+  if (!userHasIdentity(user)) return { conversations: 0, messages: 0 };
+  const baseline = getUserInboxBaseline(db, user);
+  const where = ['COALESCE(c.whatsapp_archived, 0) = 0'];
+  const params = [];
+  appendVendorVisibility(where, params, user);
+
+  const row = db.prepare(`
+    WITH inbox_baseline(baseline_at, baseline_message_id) AS (VALUES (?, ?))
+    SELECT COUNT(*) AS conversations,
+           COALESCE(SUM(unread), 0) AS messages
+    FROM (
+      SELECT ${UNREAD_COUNT_SQL} AS unread
+      FROM conversations c
+      CROSS JOIN inbox_baseline
+      LEFT JOIN conversation_user_state cus
+        ON cus.conversation_id = c.id
+       AND cus.user_role = ?
+       AND cus.user_id = ?
+      WHERE ${where.join(' AND ')}
+    )
+    WHERE unread > 0
+  `).get(baseline.at, baseline.messageId, user.role, user.id, ...params);
+
+  return {
+    conversations: Number(row?.conversations || 0),
+    messages: Number(row?.messages || 0)
+  };
 }
 
 function markConversationRead({ db, conversationId, user, throughMessageId = null }) {
@@ -909,6 +955,7 @@ function searchVisibleContent({ db, user, q = '', mediaType = '', limit = 30 }) 
 module.exports = {
   canAccessConversation,
   conversationOwner,
+  countUnreadConversations,
   getVisibleConversations,
   getConversationMessages,
   getMessageWithConversation,

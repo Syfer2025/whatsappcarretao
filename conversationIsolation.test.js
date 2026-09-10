@@ -141,6 +141,9 @@ test('toda rota que o vendedor alcanca filtra por dono da conversa', () => {
     if (ROTAS_SEM_CONVERSA.has(chave)) continue;
     const filtra = corpo.includes('canAccessConversation')
       || corpo.includes('getVisibleConversations')
+      // Conta as nao lidas com a mesma visibilidade da listagem
+      // (appendVendorVisibility): o vendedor so soma o que lhe foi atribuido.
+      || corpo.includes('countUnreadConversations')
       || corpo.includes('searchVisibleContent')
       || corpo.includes('getStarredMessages')
       || corpo.includes('getConversationMessages')

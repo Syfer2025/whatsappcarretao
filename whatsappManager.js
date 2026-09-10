@@ -476,15 +476,54 @@ function buildWebVersionPin() {
   };
 }
 
+// Orçamento de memória do navegador.
+//
+// O container roda sob um cgroup de 2 GiB e o host inteiro tem ~4 GiB. Os
+// despejos do kernel mostravam o Chromium sendo morto repetidamente com
+// ~1,2–1,4 GiB de anon-rss mais até 0,5 GiB de shmem: sozinho ele consumia
+// quase todo o limite e derrubava a sessão do WhatsApp junto.
+//
+// O V8 não enxerga o limite do cgroup — ele dimensiona o heap pela RAM do host
+// e só coleta lixo com agressividade quando acha que a memória está acabando.
+// Dentro de um container isso significa crescer até o kernel matar o processo.
+// Por isso o teto é explícito aqui.
+//
+// Ambos são ajustáveis por variável de ambiente porque o valor certo depende do
+// volume de conversas: se o renderizador passar a cair sozinho durante uma
+// sincronização grande (sintoma: desconexões repetidas sem OOM no kernel),
+// WA_RENDERER_HEAP_MB é o número a aumentar.
+const RENDERER_HEAP_MB = positiveEnvNumber('WA_RENDERER_HEAP_MB', 768, { integer: true });
+const VIEWPORT_WIDTH = positiveEnvNumber('WA_VIEWPORT_WIDTH', 1280, { integer: true });
+const VIEWPORT_HEIGHT = positiveEnvNumber('WA_VIEWPORT_HEIGHT', 800, { integer: true });
+
 function buildChromiumLaunchArgs({ proxyServer } = {}) {
   const disableSandbox = shouldDisableChromiumSandbox();
   const launchArgs = [
     '--disable-dev-shm-usage',
     '--disable-blink-features=AutomationControlled',
+    `--js-flags=--max-old-space-size=${RENDERER_HEAP_MB}`,
+    // Só existe uma aba, sempre. Sem isto o Chromium mantém orçamento de
+    // processos e caches para abas que nunca vão ser abertas.
+    '--renderer-process-limit=1',
+    // Serviços que nunca são usados numa sessão automatizada e que só ocupam
+    // memória e sockets.
+    '--disable-extensions',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-background-networking',
+    '--disable-sync',
+    '--disable-default-apps',
+    '--no-first-run',
+    // Headless não tem GPU; sem isto o Chromium ainda inicializa o rasterizador
+    // por software e o compositor associado.
+    '--disable-gpu',
+    '--disable-software-rasterizer',
     `--disk-cache-size=${positiveEnvNumber('WA_DISK_CACHE_BYTES', 64 * 1024 * 1024, { integer: true })}`,
     `--media-cache-size=${positiveEnvNumber('WA_MEDIA_CACHE_BYTES', 32 * 1024 * 1024, { integer: true })}`,
     '--lang=pt-BR',
-    '--window-size=1920,1080'
+    // A janela acompanha o viewport: cada pixel a mais é memória de raster e de
+    // composição. 1920x1080 custava ~2,3x a área de 1280x800 sem que ninguém
+    // olhasse para a tela.
+    `--window-size=${VIEWPORT_WIDTH},${VIEWPORT_HEIGHT}`
   ];
 
   if (disableSandbox) {
@@ -536,7 +575,9 @@ function buildClientPuppeteerOptions({ isolated, proxyServer } = {}) {
   return {
     headless: process.env.WHATSAPP_HEADLESS !== 'false' ? 'new' : false,
     executablePath: detectSystemChrome(),
-    defaultViewport: { width: 1920, height: 1080 },
+    // Precisa bater com --window-size: viewport e janela em tamanhos diferentes
+    // fazem o Chromium manter duas superfícies de composição.
+    defaultViewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
     args: buildChromiumLaunchArgs({ proxyServer })
   };
 }

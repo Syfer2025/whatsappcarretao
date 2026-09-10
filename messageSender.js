@@ -728,9 +728,21 @@ function outboundAuthorizationError(message = 'A autorização para enviar esta 
 // token_version, então revalidamos usuário e conversa no banco imediatamente
 // antes de preparar/enviar cada item da outbox.
 //
+// A mesma janela existe em qualquer rota que espere uma resposta do WhatsApp
+// antes de mexer em estado externo (bloquear contato, por exemplo), então esta
+// função é exportada para ser chamada logo antes dessas ações também. O texto
+// do erro é parametrizado por `consequence` porque o que deixa de acontecer
+// muda conforme a ação.
+//
 // Chamadores internos/testes legados sem token_version continuam suportados;
 // eles não representam uma sessão autenticada emitida pelo servidor.
-function assertCurrentOutboundAuthorization(db, user, conversationId, requiredConversationIds = []) {
+function assertCurrentOutboundAuthorization(
+  db,
+  user,
+  conversationId,
+  requiredConversationIds = [],
+  { consequence = 'a mensagem não foi enviada' } = {}
+) {
   if (!user || !Object.hasOwn(user, 'token_version')) return;
 
   let effectiveUser = user;
@@ -742,13 +754,13 @@ function assertCurrentOutboundAuthorization(db, user, conversationId, requiredCo
       WHERE v.id = ? AND v.active = 1
     `).get(user.id);
     if (!vendor || Number(vendor.token_version || 0) !== Number(user.token_version || 0)) {
-      throw outboundAuthorizationError('Seu acesso foi alterado antes do envio; a mensagem não foi enviada');
+      throw outboundAuthorizationError(`Seu acesso foi alterado; ${consequence}`);
     }
     effectiveUser = { ...user, sector_id: vendor.sector_id };
   } else if (user.role === 'admin') {
     const admin = db.prepare('SELECT token_version FROM admins WHERE id = ?').get(user.id);
     if (!admin || Number(admin.token_version || 0) !== Number(user.token_version || 0)) {
-      throw outboundAuthorizationError('Sua sessão foi alterada antes do envio; a mensagem não foi enviada');
+      throw outboundAuthorizationError(`Sua sessão foi alterada; ${consequence}`);
     }
   } else {
     throw outboundAuthorizationError();
@@ -767,7 +779,7 @@ function assertCurrentOutboundAuthorization(db, user, conversationId, requiredCo
       WHERE id = ?
     `).get(id);
     if (!currentConversation || !canAccessConversation(effectiveUser, currentConversation)) {
-      throw outboundAuthorizationError('Uma conversa envolvida foi transferida antes do envio; a mensagem não foi enviada');
+      throw outboundAuthorizationError(`Uma conversa envolvida foi transferida; ${consequence}`);
     }
   }
 }
@@ -1057,6 +1069,7 @@ async function sendOutboundMessage({
 }
 
 module.exports = {
+  assertCurrentOutboundAuthorization,
   saveMessageLocation,
   inboundLocationFrom,
   normalizeLocationPayload,

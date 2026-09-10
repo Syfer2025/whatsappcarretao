@@ -102,15 +102,15 @@ O `deploy.sh`:
 6. cria e verifica um snapshot global quiescente de bancos, mídias e autenticação WhatsApp, recusando lease de writer vivo ou divergência entre tenants;
 7. usa `docker compose up -d --force-recreate --wait`, sem `down`, e aguarda `/health/ready`;
 8. executa auditoria pós-migração e smoke tests local e público;
-9. restaura a imagem anterior automaticamente se qualquer etapa após a parada falhar e mantém a última imagem estável na tag `whatsa-ai:previous`.
+9. restaura a imagem anterior automaticamente se qualquer etapa após a parada falhar e mantém a última imagem estável na tag `whatscarretao:previous`.
 
 O rollback automático é **somente da imagem**. Ele deliberadamente não sobrescreve bancos ou arquivos durante um incidente. Migrações de schema de uma release devem ser retrocompatíveis com a imagem anterior; quando não forem, o plano da release precisa trazer migração reversa testada ou restore manual do snapshot pré-deploy.
 
 Rollback manual da última imagem, após criar/validar um novo snapshot de segurança:
 
 ```sh
-docker image tag whatsa-ai:previous "${APP_IMAGE:-whatsa-ai:local}"
-docker compose up -d --force-recreate --wait --wait-timeout 180 whatsa-ai
+docker image tag whatscarretao:previous "${APP_IMAGE:-whatscarretao:local}"
+docker compose up -d --force-recreate --wait --wait-timeout 180 whatscarretao
 curl --fail --silent https://SEU_DOMINIO/health/ready
 ```
 
@@ -132,7 +132,7 @@ O comando oficial é:
 ```sh
 npm run backup
 # ou, com o container ativo:
-docker compose exec -T whatsa-ai npm run backup
+docker compose exec -T whatscarretao npm run backup
 ```
 
 Cada execução cria `backups/backup-<timestamp>-<id>/` contendo:
@@ -159,11 +159,32 @@ npm run backup:verify -- backups/backup-AAAAMMDDTHHMMSSmmmZ-ID
 
 Essa verificação detecta corrupção acidental e divergência do manifesto; não é assinatura contra um invasor capaz de alterar ao mesmo tempo snapshot e manifesto. Para autenticidade, use repositório offsite criptografado/assinado e imutável.
 
-Agendamento mínimo sugerido, a cada quatro horas:
+Agendamento, a cada quatro horas — o mesmo RPO declarado abaixo. O repositório já traz
+as units prontas; instalar é copiar e habilitar:
 
-```cron
-17 */4 * * * cd /opt/whatsa-ai-comercial && docker compose exec -T whatsa-ai npm run backup >> /var/log/whatsa-backup.log 2>&1
+```sh
+sudo cp deploy/systemd/whatscarretao-backup.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now whatscarretao-backup.timer
 ```
+
+Confira `User=` e `WorkingDirectory=` no arquivo `.service` antes de habilitar: precisam
+bater com o dono real do deploy.
+
+O serviço chama `scripts/scheduled-backup.sh`, que **cria e verifica** o snapshot na mesma
+execução — um backup não verificado não conta como RPO válido. O resultado, com código de
+saída, fica no journal:
+
+```sh
+systemctl list-timers whatscarretao-backup.timer   # confirma que está agendado
+journalctl -u whatscarretao-backup.service -n 50   # último resultado
+```
+
+> A auditoria de 09/09/2026 encontrou os backups parados havia cinco dias e nenhum
+> agendamento instalado. A linha de cron que este runbook trazia antes apontava para o
+> serviço `whatsa-ai` e para `/opt/whatsa-ai-comercial` — nomes do produto original, que
+> não existem neste fork. Quem a copiasse instalaria um agendamento que falha em silêncio.
+> Por isso o agendamento agora é versionado junto com o código.
 
 Política mínima:
 
@@ -197,10 +218,10 @@ Nunca restaure diretamente sobre produção antes de validar o snapshot em um am
    Nunca use `cp -R snapshot/* destino/`: ele omite dotfiles como `.wwebjs_auth`, pode aninhar diretórios por engano e não comprova a transferência.
 
 3. Subir a imagem em rede isolada com segredos exclusivos de staging e validar `/health/ready`, login, tenants, conversas, mídia e conexão WhatsApp.
-4. Para o restore real, criar um backup final, colocar o origin em manutenção e executar `docker compose stop whatsa-ai`.
+4. Para o restore real, criar um backup final, colocar o origin em manutenção e executar `docker compose stop whatscarretao`.
 5. Mover `data/`, `media/` e `.wwebjs_auth/` atuais para uma pasta de quarentena; nunca apagá-los antes da validação final.
 6. A partir do payload já preparado, copiar `data/`, `media/`, `.wwebjs_auth/` e cada banco `.db` legado listado no manifesto na raiz. Corrigir proprietário/permissões e não restaurar `.env` — os segredos vêm do secret manager. Se ainda existirem bancos legados na raiz, não os descarte até confirmar pela aplicação/migração que deixaram de ser fonte de dados.
-7. Executar `docker compose up -d --wait --wait-timeout 180 whatsa-ai` e validar os smoke tests local e público em `/health/ready`.
+7. Executar `docker compose up -d --wait --wait-timeout 180 whatscarretao` e validar os smoke tests local e público em `/health/ready`.
 8. Monitorar erros, WAL, sessões WhatsApp e Stripe por pelo menos 24 horas. Manter a quarentena até o encerramento formal.
 
 ## Alertas mínimos

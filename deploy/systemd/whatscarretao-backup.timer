@@ -1,0 +1,25 @@
+; Dispara o backup a cada 4 horas — o mesmo RPO declarado no runbook.
+;
+; Por que timer e não cron: o timer sobrevive a reinício do servidor com
+; Persistent=true (uma execução perdida acontece assim que a máquina volta, em
+; vez de esperar a próxima janela) e o resultado fica no journal, com código de
+; saída, sem depender de alguém lembrar de ler um arquivo de log.
+;
+; Conferir se está ativo:
+;   systemctl list-timers whatscarretao-backup.timer
+
+[Unit]
+Description=Backup do WhatsCarretao a cada 4 horas
+
+[Timer]
+; Minuto 17 para não cair junto com a virada da hora, quando o host costuma
+; estar ocupado com rotação de logs e outras tarefas agendadas.
+OnCalendar=*-*-* 00,04,08,12,16,20:17:00
+; Se o servidor estava desligado no horário, roda ao voltar.
+Persistent=true
+; Espalha o início para não coincidir com outros timers do host.
+RandomizedDelaySec=300
+Unit=whatscarretao-backup.service
+
+[Install]
+WantedBy=timers.target
