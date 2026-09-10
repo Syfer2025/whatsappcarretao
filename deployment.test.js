@@ -336,7 +336,13 @@ test('example environment uses placeholders and backup implementation excludes e
   assert.match(compose, /SHUTDOWN_HTTP_TIMEOUT_MS:\s+\$\{SHUTDOWN_HTTP_TIMEOUT_MS:-15000\}/);
   assert.match(compose, /SHUTDOWN_WHATSAPP_TIMEOUT_MS:\s+\$\{SHUTDOWN_WHATSAPP_TIMEOUT_MS:-25000\}/);
   assert.match(compose, /FFMPEG_PATH:\s+\/usr\/bin\/ffmpeg/);
-  assert.match(example, /RECENT_SYNC_INTERVAL_MS=10000/);
+  // 60 s, nao 10 s. Com 10 s a pagina do WhatsApp Web ficava ocupada quase o
+  // tempo todo (cada ciclo varre ate 35 conversas, e as lentas gastam 15 s cada
+  // no timeout do fetchMessages), o health check chamado na MESMA pagina nao era
+  // respondido, e a sessao viva era reconectada — 4 vezes em 10 minutos, em
+  // 10/09/2026. Este ciclo e rede de seguranca: mensagem nova chega por evento
+  // em tempo real, entao espaca-lo nao atrasa atendimento.
+  assert.match(example, /RECENT_SYNC_INTERVAL_MS=60000/);
   for (const variable of [
     'GET_CHATS_TIMEOUT_MS',
     'HISTORY_CHAT_FETCH_TIMEOUT_MS',
