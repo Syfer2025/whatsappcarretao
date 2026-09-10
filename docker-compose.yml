@@ -62,11 +62,13 @@ services:
       WA_BROWSER_MODE: isolated
       WA_NO_SANDBOX: ${WA_NO_SANDBOX:-false}
       WHATSAPP_HEADLESS: ${WHATSAPP_HEADLESS:-true}
-      # Teto do heap do renderizador do Chromium e tamanho da janela headless.
-      # Ver o comentário em whatsappManager.js: o Chromium vinha sendo morto pelo
-      # kernel com ~1,3 GiB dentro de um limite de 2 GiB. Aumentar
-      # WA_RENDERER_HEAP_MB se o renderizador passar a cair sozinho.
-      WA_RENDERER_HEAP_MB: ${WA_RENDERER_HEAP_MB:-768}
+      # Tamanho da janela headless. Ninguém olha para ela; cada pixel a mais é
+      # memória de raster e composição.
+      #
+      # NÃO existe teto de heap para o renderizador — ver o comentário em
+      # whatsappManager.js. Um teto abaixo do que a página do WhatsApp Web usa
+      # de fato (~1,7 GiB) não a faz caber, só a deixa lenta a ponto de o health
+      # check estourar e disparar reconexão atrás de reconexão.
       WA_VIEWPORT_WIDTH: ${WA_VIEWPORT_WIDTH:-1280}
       WA_VIEWPORT_HEIGHT: ${WA_VIEWPORT_HEIGHT:-800}
       FFMPEG_PATH: /usr/bin/ffmpeg

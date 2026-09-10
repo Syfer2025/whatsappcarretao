@@ -478,21 +478,27 @@ function buildWebVersionPin() {
 
 // Orçamento de memória do navegador.
 //
-// O container roda sob um cgroup de 2 GiB e o host inteiro tem ~4 GiB. Os
-// despejos do kernel mostravam o Chromium sendo morto repetidamente com
-// ~1,2–1,4 GiB de anon-rss mais até 0,5 GiB de shmem: sozinho ele consumia
-// quase todo o limite e derrubava a sessão do WhatsApp junto.
+// O container roda sob um cgroup de 2 GiB e o host inteiro tem ~4 GiB, e os
+// despejos do kernel mostravam o Chromium sendo morto repetidamente. A folga
+// veio de limitar o que dá para limitar sem mexer na página: os tmpfs (/tmp e
+// /dev/shm somavam 2 GiB de teto, o limite inteiro do container), os serviços
+// que uma sessão automatizada nunca usa, e o tamanho da janela.
 //
-// O V8 não enxerga o limite do cgroup — ele dimensiona o heap pela RAM do host
-// e só coleta lixo com agressividade quando acha que a memória está acabando.
-// Dentro de um container isso significa crescer até o kernel matar o processo.
-// Por isso o teto é explícito aqui.
+// NÃO existe teto de heap para o renderizador, e isso é deliberado.
 //
-// Ambos são ajustáveis por variável de ambiente porque o valor certo depende do
-// volume de conversas: se o renderizador passar a cair sozinho durante uma
-// sincronização grande (sintoma: desconexões repetidas sem OOM no kernel),
-// WA_RENDERER_HEAP_MB é o número a aumentar.
-const RENDERER_HEAP_MB = positiveEnvNumber('WA_RENDERER_HEAP_MB', 768, { integer: true });
+// Em 10/09/2026 um `--js-flags=--max-old-space-size=768` foi colocado aqui e
+// removido no mesmo dia: medindo em produção, o renderizador da página do
+// WhatsApp Web fica em ~1,7 GiB de RSS. Um teto abaixo do que a página
+// realmente usa não a faz caber — faz o V8 coletar lixo sem parar, e a página
+// fica tão lenta que `getState()` estoura os 10 s do health check. Duas falhas
+// seguidas disparam reconexão, a reconexão recarrega a página, e aí aparecem
+// os erros que o operador vê na tela: "getChats excedeu 15000ms" e "Attempted
+// to use detached Frame".
+//
+// Ou seja: apertar o heap do renderizador troca um problema de memória por um
+// problema de disponibilidade. Se a memória voltar a estourar, o caminho é
+// reduzir o volume carregado por sincronização (FULL_SYNC_*, OLDER_SYNC_*) ou
+// dar mais RAM ao host — não estrangular a página.
 const VIEWPORT_WIDTH = positiveEnvNumber('WA_VIEWPORT_WIDTH', 1280, { integer: true });
 const VIEWPORT_HEIGHT = positiveEnvNumber('WA_VIEWPORT_HEIGHT', 800, { integer: true });
 
@@ -501,12 +507,10 @@ function buildChromiumLaunchArgs({ proxyServer } = {}) {
   const launchArgs = [
     '--disable-dev-shm-usage',
     '--disable-blink-features=AutomationControlled',
-    `--js-flags=--max-old-space-size=${RENDERER_HEAP_MB}`,
-    // Só existe uma aba, sempre. Sem isto o Chromium mantém orçamento de
-    // processos e caches para abas que nunca vão ser abertas.
-    '--renderer-process-limit=1',
     // Serviços que nunca são usados numa sessão automatizada e que só ocupam
-    // memória e sockets.
+    // memória e sockets. Nenhum deles mexe no trabalho da página — ao contrário
+    // do teto de heap e do limite de processos de renderização, que estavam
+    // aqui e foram removidos por deixarem a página lenta demais.
     '--disable-extensions',
     '--disable-component-extensions-with-background-pages',
     '--disable-background-networking',
