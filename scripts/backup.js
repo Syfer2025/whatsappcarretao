@@ -180,33 +180,78 @@ async function backupDatabase(source, destination) {
   };
 }
 
+// Copia uma arvore de arquivos da origem VIVA — por isso ela pode mudar embaixo
+// da copia.
+//
+// O Chromium reescreve o proprio cache dentro de .wwebjs_auth/ o tempo todo
+// enquanto a sessao do WhatsApp esta no ar. Um arquivo listado pelo readdir
+// desaparecia antes do lstat e o ENOENT derrubava o backup inteiro. Era por isso
+// que so os snapshots do deploy terminavam: la o app esta parado. Um backup
+// agendado com o sistema em producao falhava sempre — e falhava calado, porque
+// ninguem lia a saida.
+//
+// Arquivo que sumiu no meio do caminho nao e perda: ele tambem nao existe mais
+// na origem. Mas nao pode virar silencio: a contagem vai para o manifesto, e um
+// numero alto em media/ (onde arquivos deveriam ser imutaveis) e sinal de que
+// algo esta apagando dados.
+function isVanishedEntry(error) {
+  return error?.code === 'ENOENT';
+}
+
 async function copySnapshotTree(source, destination) {
   const summary = {
     files: 0,
     bytes: 0,
     skippedSpecialFiles: 0,
     sourceSkippedSpecialFiles: 0,
+    vanishedDuringCopy: 0,
     sha256: crypto.createHash('sha256').digest('hex'),
   };
   if (!(await pathExists(source))) return summary;
   const treeHash = crypto.createHash('sha256');
 
-  async function copyEntry(sourcePath, destinationPath) {
-    const stats = await fs.lstat(sourcePath);
+  // `isRoot` nunca tolera ENOENT: a raiz sumir significa que o diretorio de
+  // origem foi removido, e um backup vazio publicado como valido seria pior do
+  // que nenhum backup.
+  async function copyEntry(sourcePath, destinationPath, isRoot = false) {
+    let stats;
+    try {
+      stats = await fs.lstat(sourcePath);
+    } catch (error) {
+      if (isRoot || !isVanishedEntry(error)) throw error;
+      summary.vanishedDuringCopy += 1;
+      return;
+    }
     if (stats.isSymbolicLink() || (!stats.isDirectory() && !stats.isFile())) {
       summary.sourceSkippedSpecialFiles += 1;
       return;
     }
     if (stats.isDirectory()) {
       await fs.mkdir(destinationPath, { recursive: true, mode: 0o700 });
-      const entries = await fs.readdir(sourcePath);
+      let entries;
+      try {
+        entries = await fs.readdir(sourcePath);
+      } catch (error) {
+        if (isRoot || !isVanishedEntry(error)) throw error;
+        summary.vanishedDuringCopy += 1;
+        return;
+      }
       for (const name of entries.sort()) {
         await copyEntry(path.join(sourcePath, name), path.join(destinationPath, name));
       }
       return;
     }
     await fs.mkdir(path.dirname(destinationPath), { recursive: true, mode: 0o700 });
-    await fs.copyFile(sourcePath, destinationPath);
+    try {
+      await fs.copyFile(sourcePath, destinationPath);
+    } catch (error) {
+      if (!isVanishedEntry(error)) throw error;
+      // copyFile pode ter criado um destino vazio antes de falhar. Ele nao pode
+      // sobrar: entraria no hash da arvore como um arquivo que nunca existiu.
+      await fs.rm(destinationPath, { force: true });
+      summary.vanishedDuringCopy += 1;
+      return;
+    }
     await fs.chmod(destinationPath, 0o600);
     await syncFile(destinationPath);
     const destinationStats = await fs.stat(destinationPath);
@@ -217,7 +262,7 @@ async function copySnapshotTree(source, destination) {
     summary.bytes += destinationStats.size;
   }
 
-  await copyEntry(source, destination);
+  await copyEntry(source, destination, true);
   summary.sha256 = treeHash.digest('hex');
   return summary;
 }
