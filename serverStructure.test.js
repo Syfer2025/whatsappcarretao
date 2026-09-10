@@ -700,9 +700,17 @@ test('sync runtime failure detection recognizes minified page errors via stack',
   ].join('\n');
   assert.equal(context.detect(minified), true);
 
+  // Timeout de UMA operacao diz que a pagina esta lenta, nao que o contexto
+  // morreu. Ate 10/09/2026 isto valia `true`, e era o gatilho que reiniciava a
+  // sessao a cada ~90 s: tres `fetchMessages excedeu 15000ms` em 2 minutos
+  // reciclavam o navegador, a recarga derrubava tudo em voo e gerava mais
+  // timeouts. Ver syncFailureClassification.test.js.
   const timeout = new Error('getChats excedeu 15000ms');
-  assert.equal(context.detect(timeout), true);
+  timeout.code = 'OPERATION_TIMEOUT';
+  assert.equal(context.detect(timeout), false);
 
+  // O lote INTEIRO falhar e outra coisa: nao e uma conversa demorada, e sinal
+  // agregado de que a pagina parou de responder. Continua reciclando.
   const batchFailure = new Error('fetchMessages falhou nas 12 conversas do lote');
   assert.equal(context.detect(batchFailure), true);
 

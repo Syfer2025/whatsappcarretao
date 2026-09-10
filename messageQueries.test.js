@@ -619,11 +619,15 @@ test('rejects oversized or malformed conversation state without growing sqlite',
 
 test('orders pinned conversations first without leaking pin state to other users', () => {
   const db = createDb();
+  // As duas mensagens ficam ANTES do baseline da caixa de entrada
+  // (2026-07-07 10:03:30), entao nenhuma conversa conta como nao lida e a
+  // fixacao e o unico criterio em disputa — que e o que este teste cobre.
+  // Nao lida vem acima de fixada e tem teste proprio em unreadInbox.test.js.
   db.prepare(`
     INSERT INTO messages (id, conversation_id, from_type, content, delivery_status, created_at)
     VALUES
       (5, 1, 'client', 'antiga fixada', 'received', '2026-07-07 09:00:00'),
-      (6, 2, 'client', 'mais nova sem fixar', 'received', '2026-07-07 11:00:00')
+      (6, 2, 'client', 'mais nova sem fixar', 'received', '2026-07-07 09:30:00')
   `).run();
   updateConversationUserState({
     db,
