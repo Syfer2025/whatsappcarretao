@@ -78,8 +78,19 @@ services:
       WA_MEDIA_CACHE_BYTES: ${WA_MEDIA_CACHE_BYTES:-33554432}
       WA_RESTORE_STAGGER_MS: ${WA_RESTORE_STAGGER_MS:-1500}
       WA_HEALTH_CHECK_INTERVAL_MS: ${WA_HEALTH_CHECK_INTERVAL_MS:-30000}
-      WA_HEALTH_CHECK_TIMEOUT_MS: ${WA_HEALTH_CHECK_TIMEOUT_MS:-10000}
-      WA_HEALTH_CHECK_MAX_FAILURES: ${WA_HEALTH_CHECK_MAX_FAILURES:-2}
+      # O health check chama getState() na propria pagina do WhatsApp Web. Se a
+      # pagina esta ocupada com uma sincronizacao, ele nao e respondido a tempo —
+      # e a sessao, que esta viva, era declarada morta e reconectada.
+      #
+      # Em 10/09/2026 isso rendeu 9 falhas e 4 reconexoes em 10 minutos, NENHUMA
+      # por queda real. Cada reconexao recarrega a pagina e dispara reconciliacao
+      # integral, deixando-a ainda mais ocupada: o sistema se derrubava sozinho.
+      #
+      # 20 s x 3 falhas, com intervalo de 30 s, exige ~90 s de pagina muda antes de
+      # reconectar. Sessao realmente morta continua sendo detectada; sessao apenas
+      # ocupada deixa de ser punida.
+      WA_HEALTH_CHECK_TIMEOUT_MS: ${WA_HEALTH_CHECK_TIMEOUT_MS:-20000}
+      WA_HEALTH_CHECK_MAX_FAILURES: ${WA_HEALTH_CHECK_MAX_FAILURES:-3}
       WA_STATE_STUCK_TIMEOUT_MS: ${WA_STATE_STUCK_TIMEOUT_MS:-120000}
       WA_RECONNECT_BASE_MS: ${WA_RECONNECT_BASE_MS:-5000}
       WA_RECONNECT_MAX_MS: ${WA_RECONNECT_MAX_MS:-60000}
@@ -101,7 +112,15 @@ services:
       GET_CHATS_TIMEOUT_MS: ${GET_CHATS_TIMEOUT_MS:-15000}
       HISTORY_CHAT_FETCH_TIMEOUT_MS: ${HISTORY_CHAT_FETCH_TIMEOUT_MS:-60000}
       HISTORY_IMPORT_LOCK_WAIT_MS: ${HISTORY_IMPORT_LOCK_WAIT_MS:-30000}
-      RECENT_SYNC_INTERVAL_MS: ${RECENT_SYNC_INTERVAL_MS:-10000}
+      # Folga ENTRE ciclos de reconciliacao, nao atraso de mensagem: mensagem nova
+      # chega por evento em tempo real, este ciclo e so a rede de seguranca que
+      # confere o que possa ter se perdido.
+      #
+      # Cada ciclo varre ate 35 conversas, e as que estao lentas gastam 15 s cada
+      # no timeout do fetchMessages. Com 10 s de intervalo a pagina ficava ocupada
+      # praticamente o tempo todo e o health check nunca conseguia vez. Com 60 s a
+      # pagina volta a ter periodo ocioso.
+      RECENT_SYNC_INTERVAL_MS: ${RECENT_SYNC_INTERVAL_MS:-60000}
       RECENT_SYNC_CHAT_LIMIT: ${RECENT_SYNC_CHAT_LIMIT:-35}
       RECENT_SYNC_MESSAGE_LIMIT: ${RECENT_SYNC_MESSAGE_LIMIT:-50}
       RECENT_SYNC_MAX_FETCH_LIMIT: ${RECENT_SYNC_MAX_FETCH_LIMIT:-500}
