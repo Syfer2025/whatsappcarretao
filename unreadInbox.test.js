@@ -88,12 +88,30 @@ test('marcar como nao lida devolve a conversa ao topo', () => {
   assert.deepEqual(idsVisiveis(db, JACKSON), [10, 11], 'escolha explicita do usuario vale');
 });
 
-test('conversa fixada continua acima da nao lida', () => {
+test('nao lida fica acima ate de conversa fixada e ja lida', () => {
   const db = createDb();
-  // Fixar e uma escolha explicita e deve continuar mandando na ordem.
+  // A 11 esta fixada e nao tem nada a ler; a 10 tem duas mensagens sem abrir.
   updateConversationUserState({ db, conversationId: 11, user: JACKSON, patch: { pinned: true } });
 
-  assert.deepEqual(idsVisiveis(db, JACKSON), [11, 10], 'fixada primeiro, nao lida logo abaixo');
+  // Com a lista paginada, um punhado de fixadas ja lidas empurraria quem esta
+  // esperando resposta para fora da primeira pagina.
+  assert.deepEqual(idsVisiveis(db, JACKSON), [10, 11], 'nao lida vem primeiro');
+});
+
+test('fixar continua ordenando DENTRO de cada grupo', () => {
+  const db = createDb();
+  // Duas nao lidas: a 12 e mais recente que a 10, entao lideraria por data.
+  db.prepare('UPDATE conversations SET assigned_to = 9 WHERE id = 12').run();
+  assert.deepEqual(idsVisiveis(db, JACKSON), [12, 10, 11], 'nao lidas por data, lida por ultimo');
+
+  // Fixar a 10 a coloca na frente da 12 — mas as duas seguem acima da lida.
+  updateConversationUserState({ db, conversationId: 10, user: JACKSON, patch: { pinned: true } });
+  assert.deepEqual(idsVisiveis(db, JACKSON), [10, 12, 11], 'fixada primeiro entre as nao lidas');
+
+  // E entre as lidas a fixacao tambem vale: 11 e a unica lida, fixa-la nao a
+  // tira do fim, porque nao lida ganha sempre.
+  updateConversationUserState({ db, conversationId: 11, user: JACKSON, patch: { pinned: true } });
+  assert.deepEqual(idsVisiveis(db, JACKSON), [10, 12, 11], 'fixar uma lida nao a poe acima de nao lidas');
 });
 
 test('o total de nao lidas conta conversas e mensagens', () => {

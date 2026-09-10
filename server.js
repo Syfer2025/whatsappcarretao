@@ -4637,7 +4637,32 @@ function clearSyncRuntimeFailures(tenantId) {
 // do importador/banco (reciclar não ajudaria).
 function isBrowserContextSyncFailure(err) {
   const message = String(err?.message || err || '');
-  if (/getChats|fetchMessages|Evaluation failed|Target closed|Protocol error|Session closed|browser.*disconnect|Execution context.*destroy|excedeu\s+\d+ms/i.test(message)) {
+
+  // Timeout NOSSO não é prova de que o navegador morreu — é prova de que a
+  // página está LENTA.
+  //
+  // `withTimeout` (runtimeUtils.js) rejeita com code OPERATION_TIMEOUT e
+  // mensagem "<operação> excedeu Nms". Esse texto casava com a lista abaixo, e
+  // como as mensagens ainda citam getChats/fetchMessages, casava duas vezes.
+  // Resultado: um `fetchMessages excedeu 15000ms` — uma conversa demorada —
+  // contava como "contexto inutilizável". Três em 2 minutos reciclavam a
+  // sessão, sem passar pelo health check.
+  //
+  // Com 3+ desses timeouts por minuto em produção, este caminho reiniciava a
+  // sessão sozinho a cada ~90 s: recarregar a página derruba tudo que estava em
+  // voo ("Attempted to use detached Frame"), dispara reconciliação integral e
+  // gera mais timeouts — a rajada se alimentava.
+  //
+  // Página lenta é problema de vazão: quem trata é a sincronização, reduzindo o
+  // ritmo. A detecção de sessão realmente travada continua com o health check,
+  // que é a sonda dedicada e exige ~90 s de silêncio antes de reciclar.
+  if (err?.code === 'OPERATION_TIMEOUT' || /excedeu\s+\d+ms/i.test(message)) {
+    return false;
+  }
+
+  // Sinais de que o contexto realmente deixou de existir. Aqui reciclar ajuda:
+  // a página/aba/browser foi fechada ou o protocolo caiu.
+  if (/getChats|fetchMessages|Evaluation failed|Target closed|Protocol error|Session closed|browser.*disconnect|Execution context.*destroy|detached Frame/i.test(message)) {
     return true;
   }
   return /node_modules[\\/](?:puppeteer|whatsapp-web\.js)|ExecutionContext/.test(String(err?.stack || ''));

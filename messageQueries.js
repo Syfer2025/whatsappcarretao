@@ -730,14 +730,18 @@ function getVisibleConversations({ db, user, queue = '', limit, offset }) {
       )
     ${whereSql}
     ORDER BY
+      -- NAO LIDA VEM PRIMEIRO, acima de tudo — inclusive das fixadas.
+      --
+      -- A primeira versao punha fixadas acima, imitando o WhatsApp. Errado para
+      -- este caso: com a lista paginada, um punhado de conversas fixadas e ja
+      -- lidas empurrava quem estava esperando resposta para fora da primeira
+      -- pagina — exatamente o problema que essa ordenacao existe para resolver.
+      --
+      -- Fixar continua valendo, mas DENTRO de cada grupo: entre as nao lidas as
+      -- fixadas vem na frente, e entre as lidas idem.
+      CASE WHEN unread_count > 0 THEN 0 ELSE 1 END ASC,
       CASE WHEN cus.pinned_at IS NULL THEN 1 ELSE 0 END ASC,
       cus.pinned_at DESC,
-      -- Conversa com mensagem nao aberta sobe para o topo e fica la ate alguem
-      -- abrir. Sem isto ela descia junto com o resto conforme chegavam outras
-      -- mensagens e sumia da primeira pagina — o atendimento so a encontrava
-      -- rolando a lista, ou nunca. Fica ABAIXO das fixadas: fixar e uma escolha
-      -- explicita do usuario e continua valendo mais.
-      CASE WHEN unread_count > 0 THEN 0 ELSE 1 END ASC,
       COALESCE(latest.created_at, c.last_activity_at, c.updated_at) DESC,
       c.id DESC
     LIMIT ? OFFSET ?
