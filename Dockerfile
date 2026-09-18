@@ -35,6 +35,10 @@ RUN npm ci --omit=dev \
 
 COPY . .
 
+# Correcao de fornecedor aplicada sobre o node_modules ja instalado: sem ela o
+# whatsapp-web.js 1.34.7 falha em todo envio de anexo. Detalhes no script.
+RUN node scripts/patch-wwebjs.js
+
 RUN mkdir -p data media backups .wwebjs_auth .wwebjs_cache \
   && chown -R node:node data media backups .wwebjs_auth .wwebjs_cache /home/node
 
